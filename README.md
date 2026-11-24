@@ -1,7 +1,7 @@
 # Rising Sun · Scroll of Honor
 
-A fan-made stats page for our *Rising Sun* board game nights: Elo ratings, rank titles, clan stats,
-head-to-head records, a battle replay, and more. It's a single file (`index.html`) that runs entirely in
+A fan-made stats page for our *Rising Sun* board game nights: TrueSkill ratings, rank titles, clan stats,
+head-to-head records, a battle replay, and more. Ratings use a simplified **TrueSkill** (finishing order only, shown as μ − 2σ). It's a single file (`index.html`) that runs entirely in
 the browser, with no server or account needed.
 
 **Live page:** https://tomfilbey.github.io/rising-sun/

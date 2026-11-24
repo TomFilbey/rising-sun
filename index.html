@@ -9,7 +9,7 @@
     <nav class="tabs">            the three screens: #stats, #record, #ledger
     data-screen="..."             the markup for each screen
     <script id="battle-data">     THE BATTLE DATA (JSON). "Download updated page" rewrites this block.
-    main <script>, in order:      load data / working copy, Kami & card info, clan emblems, Elo + stats,
+    main <script>, in order:      load data / working copy, Kami & card info, clan emblems, ratings (TrueSkill) + stats,
                                   each Stats section, the form, banner + backups, screen router, ledger
 
   Saving: new battles and ledger edits are kept in this browser (localStorage) until someone presses
@@ -90,10 +90,11 @@
 
   /* ---------- replay ---------- */
   .replay{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:4px 0 8px}
-  .replay button,#themeToggle{font:inherit;font-size:14px;font-weight:600;border:0;background:var(--sun);color:#fff;padding:8px 16px;border-radius:22px;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.15)}
+  .replay button,#themeToggle{font:inherit;font-size:14px;font-weight:600;border:0;background:var(--bar);color:#fff;padding:8px 16px;border-radius:22px;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.15)}
   .replay button:hover{filter:brightness(1.08)}
-  .replay input[type=range]{flex:1;min-width:180px;max-width:420px;accent-color:var(--sun)}
-  #replayLabel{font-size:13px;color:var(--ink-2);min-width:150px}
+  .replay input[type=range]{flex:1;min-width:180px;max-width:420px;accent-color:var(--bar)}
+  #replayLabel,.rlabel{font-size:13px;color:var(--ink-2);min-width:150px}
+  .rlabel .s{color:var(--ink-3)}
   .news{min-height:26px;font-size:14px;color:var(--ink);margin-bottom:4px}
   .news .hanko{width:22px;height:22px;font-size:13px;margin-right:8px;vertical-align:middle}
   .elowrap{display:grid;grid-template-columns:1fr 210px;gap:16px;align-items:start}
@@ -152,6 +153,9 @@
   [data-theme="night"] .sunrise{display:none}
   [data-theme="night"] .moonrise{display:inline;animation:rise 2.6s cubic-bezier(.2,.7,.2,1) both}
   [data-theme="night"] .hero h1 span{color:#f3d98b}
+  /* night: the moon sits behind the stat tiles, so give them a solid dark backing */
+  [data-theme="night"] .replay > button:not(.tb),[data-theme="night"] .playb{color:#12100e}   /* night blue is light: dark text */
+  [data-theme="night"] .tile{background:rgba(14,12,10,.82);border-color:rgba(243,217,139,.25);backdrop-filter:blur(3px)}
   [data-theme="night"] .pod,[data-theme="night"] .award,[data-theme="night"] .clan,[data-theme="night"] .game{background:var(--card)}
   [data-theme="night"] .pod.p1{background:linear-gradient(180deg,#3a2f1d,#2a2520);border-color:#7a6630}
   [data-theme="night"] tbody tr:hover{background:#2e2823}
@@ -378,18 +382,30 @@
   [data-theme="night"] .up,[data-theme="night"] .md.up{color:#6fcf8f}
   [data-theme="night"] .down,[data-theme="night"] .md.down{color:#ef8a8a}
 
+  #eloChart circle.fresh,#eloChart text.endlbl{transform-box:fill-box;transform-origin:center}
+
+  /* ---------- segmented control (unused for now) ---------- */
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-right:8px}
+  .seg button{font:inherit;font-size:13px;font-weight:600;border:0;background:var(--card);color:var(--ink-2);padding:5px 12px;cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--bar);color:#fff}
+  .pm{font-size:11px;color:var(--ink-3);margin-left:2px}
+
   /* ---------- leaderboard time travel ---------- */
   .boardtime{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;font-size:14px}
   .boardtime .bt-l{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);font-weight:700;margin-right:2px}
   .boardtime input[type=range]{flex:1;min-width:160px;max-width:360px;accent-color:var(--bar)}
-  .boardtime .tb{border:1px solid var(--line);background:var(--card);color:var(--ink-2);border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:12px}
-  .boardtime .tb:disabled{opacity:.35;cursor:default}
+  .tb{border:1px solid var(--line);background:var(--card);color:var(--ink-2);border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:12px}
+  .tb:disabled{opacity:.35;cursor:default}
+  .playb{font:inherit;font-size:13.5px;font-weight:600;border:0;background:var(--bar);color:#fff;border-radius:22px;padding:6px 14px;cursor:pointer;margin-right:2px;box-shadow:0 2px 0 rgba(0,0,0,.15)}   /* matches Rise and Fall's Replay button */
+  .playb:hover{filter:brightness(1.1)}
+  .replay .tb{flex:0 0 auto;background:var(--card);color:var(--ink-2);border:1px solid var(--line);box-shadow:none;width:30px;height:30px;padding:0;font-size:12px;font-weight:400;border-radius:50%}
+  .replay .tb:hover{filter:none;color:var(--ink);border-color:var(--ink-3)}
   .boardtime .s,.recap .s{color:var(--ink-3);font-size:12.5px}
   .boardtime #bLatest{margin-top:0}
   section.pastview #board{box-shadow:inset 3px 0 0 var(--bar)}
   section.pastview .recap{border-color:var(--bar)}
 
-  /* ---------- Elo explainer ---------- */
+  /* ---------- ratings explainer ---------- */
   .elohow{margin-top:14px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
   .elohow summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--ink-2);list-style:none}
   .elohow summary::-webkit-details-marker{display:none}
@@ -403,6 +419,7 @@
   .elosteps li{margin-bottom:4px}
   table.elox{max-width:640px;font-size:13.5px}
   table.elox th,table.elox td{padding:6px 10px;cursor:default}
+  table.elox th{text-transform:none;letter-spacing:0;font-size:12.5px}
   table.elox tbody tr:hover{background:transparent}
   table.elox tfoot td{border-top:2px solid var(--line)}
 
@@ -531,7 +548,7 @@
   .pod svg{width:72px;height:72px;display:block;margin:0 auto}
 
   /* ---------- table ---------- */
-  .tablewrap{overflow-x:auto}
+  .tablewrap{overflow-x:auto;overflow-y:hidden}   /* hidden: sliding rows mustn't flash a vertical scrollbar */
   table{border-collapse:collapse;width:100%;font-size:14px}
   th,td{padding:8px 6px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
   th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600;cursor:pointer;user-select:none}
@@ -692,25 +709,27 @@
 <div class="screen" data-screen="stats">
   <section>
     <h2 class="serif">The Shogunate <small>将軍</small></h2>
-    <p class="lede">Ranked by <b>Elo rating</b>, the same system used for chess. Everyone starts at 1500. After each game, every player is compared with every other player at the table. Beating someone rated higher earns more points than beating someone rated lower. Rising Sun is a long game, so it takes <b>2 battles</b> to earn a rank. Warlords with only 1 battle are <b>Ronin</b> (unranked).</p>
+    <p class="lede">Ranked by <b>TrueSkill</b>, the rating system Microsoft built for multiplayer games. Only finishing order counts: each battle, you're compared with everyone at the table, and beating higher-rated players earns more. Your rating is a cautious estimate that rises as you prove yourself, so a lucky first night can't vault anyone to the top. Rising Sun is a long game, so it takes <b>2 battles</b> to earn a rank. Warlords with only 1 battle are <b>Ronin</b> (unranked).</p>
     <div class="podium" id="podium"></div>
   </section>
 
   <section>
     <h2 class="serif">Leaderboard <small>番付</small></h2>
     <p class="lede">Click any column header to sort. <b>Avg Finish</b> converts finishing place to a 0–100 scale (100 = always 1st, 0 = always last), so 4- and 6-player games can be compared. <b>Score vs Table</b> is a player's average score as a percentage of their table's average score (100% = average).</p>
-    <div class="boardtime" role="group" aria-label="Leaderboard as of a battle"><span class="bt-l">Standings</span><button type="button" class="tb" id="bPrev" aria-label="Previous battle">◀</button><input type="range" id="bSlider" min="1" value="1" aria-label="Show standings after battle"><button type="button" class="tb" id="bNext" aria-label="Next battle">▶</button><span id="bLabel"></span><button type="button" class="ghost" id="bLatest" hidden>Back to latest</button></div>
+    <div class="boardtime" role="group" aria-label="Leaderboard as of a battle"><button type="button" class="playb" id="bPlay" aria-label="Replay every battle">▶ Replay the war</button><button type="button" class="tb" id="bPrev" aria-label="Previous battle">◀</button><input type="range" id="bSlider" min="1" value="1" aria-label="Show standings after battle"><button type="button" class="tb" id="bNext" aria-label="Next battle">▶</button><span id="bLabel"></span><button type="button" class="ghost" id="bLatest" hidden>Back to latest</button></div>
     <div class="recap" id="lastRecap"></div>
     <div class="tablewrap"><table id="board"></table></div>
-    <details class="elohow" id="eloHow"><summary>How is Elo calculated?</summary><div class="elobody"></div></details>
+    <details class="elohow" id="tsHow"><summary>How are ratings calculated?</summary><div class="elobody" id="tsBody"></div></details>
   </section>
 
   <section>
     <h2 class="serif">The Rise and Fall <small>栄枯盛衰</small></h2>
-    <p class="lede">Elo rating after each battle for the 8 warlords with the most battles. Hover over the chart to see ratings at any game. Click a name in the legend to hide or show that line.</p>
+    <p class="lede">TrueSkill rating after each battle for the 8 warlords with the most battles. Hover over the chart to see ratings at any game. Click a name in the legend to hide or show that line.</p>
     <div class="replay">
       <button type="button" id="replayBtn">▶ Replay the war</button>
+      <button type="button" class="tb" id="rPrev" aria-label="Previous battle">◀</button>
       <input type="range" id="replaySlider" min="0" max="11" value="11" aria-label="Show ratings after battle">
+      <button type="button" class="tb" id="rNext" aria-label="Next battle">▶</button>
       <span id="replayLabel">After all battles</span>
     </div>
     <div class="news" id="replayNews" aria-live="polite"></div>
@@ -723,7 +742,8 @@
 
   <section>
     <h2 class="serif">The Honor Track <small>格付</small></h2>
-    <p class="lede">Each regular's marker sits on the track at their current Elo, and the colored bands show which rank title that rating earns. Warlords with only 1 battle are <b>Ronin</b> (masterless) until they fight a second battle and earn a rank.</p>
+    <p class="lede">Each regular's marker sits on the track at their current rating, and the colored bands show which rank title that rating earns. Warlords with only 1 battle are <b>Ronin</b> (masterless) until they fight a second battle and earn a rank.</p>
+    <div class="replay" role="group" aria-label="Honor track as of a battle"><button type="button" id="hPlay">▶ Replay the war</button><button type="button" class="tb" id="hPrev" aria-label="Previous battle">◀</button><input type="range" id="hSlider" min="1" value="1" aria-label="Show the track after battle"><button type="button" class="tb" id="hNext" aria-label="Next battle">▶</button><span class="rlabel" id="hLabel"></span></div>
     <div class="honorwrap">
       <div class="chart" id="honorTrack"></div>
       <div class="tiers" id="tierLegend"></div>
@@ -786,7 +806,7 @@
 
   <section>
     <h2 class="serif">Chronicle of Battles <small>戦記</small></h2>
-    <p class="lede">Every recorded game. The small numbers on the right show each player's Elo change from that game.</p>
+    <p class="lede">Every recorded game. The small numbers on the right show each player's rating change from that battle.</p>
     <div class="games" id="games"></div>
   </section>
 
@@ -795,7 +815,7 @@
     <ul class="notes">
       <li><b>Two Ryans:</b> <b>Ryan Wallace</b> and <b>Ryan Hicks</b> are tracked separately. The Ryan recorded without a last name in games 1, 3, 4 and 10 is assumed to be Ryan Wallace.</li>
       <li><b>Game 1:</b> Only Andreina's score (79) was recorded. The game counts as Andreina beating each of the other four players, but they don't get an order among themselves.</li>
-      <li><b>Game 2:</b> Only the winner (Andreina, 58, Sun Clan) was recorded. It counts toward her wins and games played but not toward Elo, because the other players are unknown.</li>
+      <li><b>Game 2:</b> Only the winner (Andreina, 58, Sun Clan) was recorded. It counts toward her wins and games played but not toward ratings, because the other players are unknown.</li>
       <li><b>Missing clans:</b> in game 7 only Tom's clan (Turtle) was recorded, and game 2 only recorded the winner's clan, so those games count less toward the clan stats and starting order.</li>
       <li><b>Ties</b> (game 4: Duffy/Chandler 71; game 8: Stephen/Chandler 52 and Adam/Thane 12) count as draws.</li>
       <li>Games are assumed to be in the order they were numbered. Only three dates were recorded (12/31/24 for game 8, 5/25/26 for game 10 and 11/22/26 for game 11).</li>
@@ -1113,10 +1133,20 @@ const ICONS = {
    COMPUTE
    ========================================================= */
 const canon = n => ALIASES[n] || n;
-const K = 32, START = 1500, PROVISIONAL = 2;   // a long game: 2+ battles earns a rank, 1 battle = Ronin
+// ---- ratings: TrueSkill (simplified) ----
+// Each warlord has a skill estimate mu and an uncertainty sigma. The shown rating is mu - 2*sigma:
+// "skill we're ~97.5% sure you have at least". It starts at 25 - 2*8.33 = 8.3 and rises as you prove yourself.
+const TS = { MU0:25, SIG0:25/3, Z:2 };
+TS.BETA = TS.SIG0/2;  TS.TAU = TS.SIG0/100;
+const tsPdf=x=>Math.exp(-x*x/2)/Math.sqrt(2*Math.PI);
+const tsCdf=x=>{ const t=1/(1+0.2316419*Math.abs(x)), d=0.3989423*Math.exp(-x*x/2); const p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274)))); return x>0?1-p:p; };
+const tsV=t=>tsPdf(t)/Math.max(tsCdf(t),1e-12), tsW=t=>{ const v=tsV(t); return v*(v+t); };
+const tsShown=s=>s.mu-TS.Z*s.sig;
+const START = TS.MU0 - TS.Z*TS.SIG0, PROVISIONAL = 2;   // a long game: 2+ battles earns a rank, 1 battle = Ronin
+const fmtR = v => v.toFixed(1);                            // ratings show one decimal
 
 const P = {}; // player stats
-const get = n => P[n] ??= { name:n, elo:START, games:0, wins:0, scores:[], finishes:[], rel:[], clans:{}, history:[], best:null };
+const get = n => P[n] ??= { name:n, elo:START, mu:TS.MU0, sig:TS.SIG0, games:0, wins:0, scores:[], finishes:[], rel:[], clans:{}, history:[], best:null };
 const eloTimeline = []; // after each game: snapshot
 
 for (const g of GAMES){
@@ -1147,31 +1177,34 @@ for (const g of GAMES){
     if (r.score != null && (p.best==null || r.score > p.best)) p.best = r.score;
   });
 
-  // Elo
+  // TrueSkill (simplified): split the battle into winner/loser pairs (like a round-robin), apply
+  // TrueSkill's two-player update to each pair, scaled so the whole battle counts once.
+  // Tied scores carry no information here. "elo" below holds the shown rating (mu - 2*sigma).
   const pairs = [];
   if (g.partial === "winnerOnly"){
-    const w = g.rows[0];
-    g.rows.slice(1).forEach(l => pairs.push([w.name, l.name, 1]));
+    g.rows.slice(1).forEach(l => pairs.push([g.rows[0].name, l.name]));
   } else if (!g.partial){
     for (let i=0;i<g.rows.length;i++) for (let j=i+1;j<g.rows.length;j++){
       const a=g.rows[i], b=g.rows[j];
-      pairs.push([a.name,b.name, a.score>b.score?1 : a.score<b.score?0 : .5]);
+      if (a.score !== b.score) pairs.push(a.score>b.score ? [a.name,b.name] : [b.name,a.name]);
     }
   }
-  g.eloUsed = pairs.length > 0;
+  g.eloUsed = pairs.length > 0;      // "this battle changed ratings"
   if (g.eloUsed){
-    const kk = K/(g.size-1);
-    const delta = {};
-    pairs.forEach(([a,b,s]) => {
-      const ea = 1/(1+10**((P[b].elo - P[a].elo)/400));
-      delta[a] = (delta[a]||0) + kk*(s-ea);
-      delta[b] = (delta[b]||0) + kk*((1-s)-(1-ea));
+    const names=[...new Set(pairs.flat())];
+    const shownBefore=Object.fromEntries(names.map(n=>[n,P[n].elo]));
+    names.forEach(n=>{ const p=P[n]; p.sig=Math.sqrt(p.sig**2+TS.TAU**2); });
+    const before=Object.fromEntries(names.map(n=>[n,{mu:P[n].mu,sig:P[n].sig}])), dmu={}, sf={}, k=1/(g.size-1);
+    pairs.forEach(([w,l])=>{
+      const A=before[w], B=before[l], c=Math.sqrt(2*TS.BETA**2+A.sig**2+B.sig**2), t=(A.mu-B.mu)/c;
+      dmu[w]=(dmu[w]||0)+k*A.sig**2/c*tsV(t);   dmu[l]=(dmu[l]||0)-k*B.sig**2/c*tsV(t);
+      sf[w]=(sf[w]||1)*(1-k*A.sig**2/c**2*tsW(t)); sf[l]=(sf[l]||1)*(1-k*B.sig**2/c**2*tsW(t));
     });
-    g.rows.forEach(r => { r.delta = delta[r.name]||0; });
-    Object.entries(delta).forEach(([n,d]) => P[n].elo += d);
+    names.forEach(n=>{ const p=P[n]; p.mu+=dmu[n]||0; p.sig*=Math.sqrt(Math.max(sf[n]||1,0.01)); p.elo=tsShown(p); });
+    g.rows.forEach(r=>{ r.delta = r.name in shownBefore ? P[r.name].elo - shownBefore[r.name] : 0; });
   }
-  const snap = {}; Object.values(P).forEach(p => snap[p.name] = p.elo);
-  eloTimeline.push({ game:g.n, ratings:snap, present:new Set(g.rows.map(r=>r.name)) });
+  const snap = {}, tsSnap = {}; Object.values(P).forEach(p => { snap[p.name] = p.elo; tsSnap[p.name] = {mu:p.mu, sig:p.sig}; });
+  eloTimeline.push({ game:g.n, ratings:snap, ts:tsSnap, present:new Set(g.rows.map(r=>r.name)) });
   g.rows.forEach(r => P[r.name].history.push({ game:g.n, elo:P[r.name].elo }));
 }
 
@@ -1188,13 +1221,13 @@ const players = Object.values(P).map(p => ({
   prov: p.games < PROVISIONAL,
 })).sort((a,b) => b.elo - a.elo);
 
-/* ---------- rank titles by Elo tier ---------- */
+/* ---------- rank titles by rating tier ---------- */
 const TIERS = [
   { key:"shogun",   name:"Shogun",   kanji:"将軍", color:"#c8102e", min:null, desc:"The single highest-rated regular. Rules the realm." },
-  { key:"daimyo",   name:"Daimyo",   kanji:"大名", color:"#b8892b", min:1520, desc:"Elo 1520+. A great lord with lands and armies." },
-  { key:"samurai",  name:"Samurai",  kanji:"侍",   color:"#2a78d6", min:1500, desc:"Elo 1500–1519. An honored warrior at or above average." },
-  { key:"ashigaru", name:"Ashigaru", kanji:"足軽", color:"#2f8f5b", min:1480, desc:"Elo 1480–1499. A foot soldier fighting to climb." },
-  { key:"peasant",  name:"Peasant",  kanji:"農民", color:"#7a6a55", min:-Infinity, desc:"Below 1480. Tends the rice fields… for now." },
+  { key:"daimyo",   name:"Daimyo",   kanji:"大名", color:"#b8892b", min:17, desc:"Rating 17+. A great lord with lands and armies." },
+  { key:"samurai",  name:"Samurai",  kanji:"侍",   color:"#2a78d6", min:14, desc:"Rating 14–17. An honored warrior on the rise." },
+  { key:"ashigaru", name:"Ashigaru", kanji:"足軽", color:"#2f8f5b", min:11, desc:"Rating 11–14. A foot soldier fighting to climb." },
+  { key:"peasant",  name:"Peasant",  kanji:"農民", color:"#7a6a55", min:-Infinity, desc:"Below 11. Tends the rice fields… for now." },
   { key:"ronin",    name:"Ronin",    kanji:"浪人", color:"#55504a", min:null, desc:"Only 1 battle so far. A wandering, masterless warrior with no rank yet." },
 ];
 const TIER = Object.fromEntries(TIERS.map(t=>[t.key,t]));
@@ -1222,7 +1255,7 @@ const ranked = players.filter(p=>!p.prov);
 const podOrder = [1,0,2];
 document.getElementById("podium").innerHTML = podOrder.map(i => {
   const p = ranked[i]; if(!p) return "<div></div>";
-  return `<div class="pod p${i+1}">${i===0?`<span class="hanko" title="Victory">勝</span>`:""}${mon(p.favClan,72)}<div class="place">${["1st","2nd","3rd"][i]} place</div><div class="name serif">${p.name}</div><div class="elo">Elo <b>${Math.round(p.elo)}</b> · ${p.wins}W / ${p.games}G</div><div class="title">${p.tier.kanji} ${p.tier.name}</div></div>`;
+  return `<div class="pod p${i+1}">${i===0?`<span class="hanko" title="Victory">勝</span>`:""}${mon(p.favClan,72)}<div class="place">${["1st","2nd","3rd"][i]} place</div><div class="name serif">${p.name}</div><div class="elo">Rating <b>${fmtR(p.elo)}</b> · ${p.wins}W / ${p.games}G</div><div class="title">${p.tier.kanji} ${p.tier.name}</div></div>`;
 }).join("");
 
 /* ---------- leaderboard table ---------- */
@@ -1230,7 +1263,7 @@ const COLS = [
   {k:"rank",l:"#",cls:"l"},
   {k:"name",l:"Warlord",cls:"l"},
   {k:"tierName",l:"Title",cls:"l"},
-  {k:"elo",l:"Elo",fmt:v=>Math.round(v)},
+  {k:"rating",l:"Rating"},   // TrueSkill rating (mu - 2 sigma)
   {k:"moveSort",l:"Last battle"},
   {k:"games",l:"Games"},
   {k:"wins",l:"Wins"},
@@ -1246,9 +1279,10 @@ players.forEach((p,i)=>{p.rank=i+1; p.tierName=10-TIERS.indexOf(p.tier);});  // 
 
 // ---- standings as of any battle (the Leaderboard's time travel) ----
 // Rebuilds every Leaderboard stat from the first N battles, plus rank movement caused by battle N.
+const ratingAfter = (name, N) => N>0 ? (eloTimeline[N-1].ratings[name] ?? START) : START;
 function standingsAt(N){
   const S={};
-  const get=n=>S[n]??={name:n,games:0,wins:0,scores:[],finishes:[],rel:[],clans:{},clanWins:{},best:null,pw:[]};
+  const get=n=>S[n]??={name:n,games:0,wins:0,scores:[],finishes:[],rel:[],clans:{},clanWins:{},pw:[]};
   GAMES.slice(0,N).forEach(g=>g.rows.forEach(r=>{
     const p=get(r.name);
     p.games++; if(r.place===1) p.wins++;
@@ -1258,30 +1292,36 @@ function standingsAt(N){
     if(r.rel!=null) p.rel.push(r.rel);
     if(r.clan){ p.clans[r.clan]=(p.clans[r.clan]||0)+1; if(r.place===1) p.clanWins[r.clan]=(p.clanWins[r.clan]||0)+1; }
   }));
-  const ratings = N>0 ? eloTimeline[N-1].ratings : {};
-  const list=Object.values(S).map(p=>({
-    name:p.name, games:p.games, wins:p.wins,
-    elo: ratings[p.name] ?? START,
-    avg: mean(p.scores), avgFinish: p.finishes.length? mean(p.finishes)*100 : null,
-    relAvg: p.rel.length? mean(p.rel)*100 : null, winPct: p.wins/p.games*100,
-    worst: p.scores.length? Math.min(...p.scores) : null,
-    hi: (p.scores.length||p.pw.length)? Math.max(...p.scores, ...p.pw) : null,
-    favClan: Object.entries(p.clans).sort((a,b)=>b[1]-a[1] || (p.clanWins[b[0]]||0)-(p.clanWins[a[0]]||0))[0]?.[0] || null,
-    prov: p.games < PROVISIONAL,
-  })).sort((a,b)=>b.elo-a.elo);
+  const snap = N>0 ? eloTimeline[N-1] : null;
+  const list=Object.values(S).map(p=>{
+    const ts = snap && snap.ts[p.name] || {mu:TS.MU0, sig:TS.SIG0};
+    return {
+      name:p.name, games:p.games, wins:p.wins,
+      rating: ratingAfter(p.name, N), mu: ts.mu, sig: ts.sig,
+      avg: mean(p.scores), avgFinish: p.finishes.length? mean(p.finishes)*100 : null,
+      relAvg: p.rel.length? mean(p.rel)*100 : null, winPct: p.wins/p.games*100,
+      worst: p.scores.length? Math.min(...p.scores) : null,
+      hi: (p.scores.length||p.pw.length)? Math.max(...p.scores, ...p.pw) : null,
+      favClan: Object.entries(p.clans).sort((a,b)=>b[1]-a[1] || (p.clanWins[b[0]]||0)-(p.clanWins[a[0]]||0))[0]?.[0] || null,
+      prov: p.games < PROVISIONAL,
+    };
+  });
+  list.forEach(p=>p.elo=p.rating);     // tierFor reads .elo
+  // ranked warlords first (by rating), then the unranked one-battle guests
+  list.sort((a,b)=> (a.prov-b.prov) || (b.rating-a.rating));
   const top=list.find(p=>!p.prov);
-  list.forEach((p,i)=>{ p.rank=i+1; p.tier=tierFor(p, p===top); p.tierName=10-TIERS.indexOf(p.tier); });
-  // movement caused by battle N
+  let r=0; list.forEach(p=>{ p.rank = p.prov ? null : ++r; p.tier=tierFor(p, p===top); p.tierName=10-TIERS.indexOf(p.tier); });
+  // movement caused by battle N (ranked players only)
   const g=GAMES[N-1];
   if(g){
-    const prev = N>1 ? eloTimeline[N-2].ratings : {};
-    const prevNames=new Set(GAMES.slice(0,N-1).flatMap(x=>x.rows.map(r=>r.name)));
-    const beforeOrder=[...prevNames].sort((a,b)=>(prev[b]??START)-(prev[a]??START));
+    const prevGames={}; GAMES.slice(0,N-1).forEach(x=>x.rows.forEach(rw=>prevGames[rw.name]=(prevGames[rw.name]||0)+1));
+    const beforeOrder=Object.keys(prevGames).filter(n=>prevGames[n]>=PROVISIONAL).sort((a,b)=>ratingAfter(b,N-1)-ratingAfter(a,N-1));
     list.forEach(p=>{
-      const was=beforeOrder.indexOf(p.name), row=g.rows.find(r=>r.name===p.name);
-      p.isNew = was<0; p.move = p.isNew? null : (was+1)-p.rank;
-      p.lastDelta = row && row.delta!=null ? row.delta : null;
-      p.moveSort = p.isNew ? -0.5 : p.move;
+      const was=beforeOrder.indexOf(p.name), row=g.rows.find(x=>x.name===p.name);
+      p.isNew = !p.prov && was<0;                 // just earned a rank (or first appearance)
+      p.move = p.prov||p.isNew ? null : (was+1)-p.rank;
+      p.lastDelta = row && g.eloUsed ? row.delta : null;
+      p.moveSort = p.prov ? -1 : p.isNew ? -0.5 : p.move;
     });
   }
   return list;
@@ -1289,34 +1329,55 @@ function standingsAt(N){
 
 let viewN = GAMES.length;            // which battle the Leaderboard is showing standings after
 let boardView = standingsAt(viewN);
+const fmtDelta = d => (d>=0?"+":"") + d.toFixed(1);
 function renderRecap(){
   const el=document.getElementById("lastRecap"), g=GAMES[viewN-1]; if(!el||!g) return;
   const w=g.rows[0], movers=boardView.filter(p=>p.lastDelta!=null);
   const latest = viewN===GAMES.length;
   let chips="";
   if(movers.length){ const up=movers.reduce((a,b)=>b.lastDelta>a.lastDelta?b:a), down=movers.reduce((a,b)=>b.lastDelta<a.lastDelta?b:a);
-    chips=` <span class="rm up">▲ ${up.name} +${Math.round(up.lastDelta)}</span><span class="rm down">▼ ${down.name} ${Math.round(down.lastDelta)}</span>`; }
+    chips=` <span class="rm up">▲ ${up.name} ${fmtDelta(up.lastDelta)}</span><span class="rm down">▼ ${down.name} ${fmtDelta(down.lastDelta)}</span>`; }
   el.innerHTML=`<span class="rl">${latest?"Last battle":"That battle"}</span><b>Battle ${g.n}${g.date?` (${g.date})`:""}:</b> ${w.name} won${w.score!=null?` with ${w.score}`:""}${w.clan?` as ${w.clan}`:""}.${chips}`+
-    (g.eloUsed?"":` <span class="s">(didn't change Elo: only the winner was recorded)</span>`);
+    (g.eloUsed?"":` <span class="s">(didn't change ratings: only the winner was recorded)</span>`);
 }
 
-let sortKey="elo", sortDir=-1;
+let sortKey="rating", sortDir=-1, showUnranked=false;
+// FLIP animation: rows slide from their old spot, newcomers fade in, changed ratings flash
+function animateBoard(oldPos, oldVal){
+  if(!Object.keys(oldPos).length || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  document.querySelectorAll("#board tbody tr[data-n]").forEach(tr=>{
+    const n=tr.dataset.n, top=tr.getBoundingClientRect().top;
+    if(!(n in oldPos)){ tr.animate([{opacity:0},{opacity:1}],{duration:450,easing:"ease-out"}); return; }
+    const dy=oldPos[n]-top;
+    if(Math.abs(dy)>1) tr.animate([{transform:`translateY(${dy}px)`},{transform:"none"}],{duration:550,easing:"cubic-bezier(.2,.7,.2,1)"});
+    if(Math.abs(oldVal[n]-(+tr.dataset.v))>1e-6){ const cell=tr.children[COLS.findIndex(c=>c.k==="rating")]; cell && cell.animate([{backgroundColor:"rgba(70,98,127,.22)"},{backgroundColor:"transparent"}],{duration:900,easing:"ease-out"}); }
+  });
+}
 function renderBoard(){
-  const eloMin=Math.min(...boardView.map(p=>p.elo)), eloMax=Math.max(...boardView.map(p=>p.elo));
-  const rows=[...boardView].sort((a,b)=>{const x=a[sortKey],y=b[sortKey]; if(x==null) return 1; if(y==null) return -1; return (typeof x==="string"? x.localeCompare(y): x-y)*sortDir;});
-  document.getElementById("board").innerHTML =
-    `<thead><tr>${COLS.map(c=>`<th class="${c.cls||""}" data-k="${c.k}">${c.l}${sortKey===c.k?(sortDir<0?" ▼":" ▲"):""}</th>`).join("")}</tr></thead><tbody>`+
-    rows.map(p=>`<tr>${COLS.map(c=>{
+  // remember where each row was (and its rating) so the new table can glide from there
+  const oldPos={}, oldVal={};
+  document.querySelectorAll("#board tbody tr[data-n]").forEach(tr=>{ oldPos[tr.dataset.n]=tr.getBoundingClientRect().top; oldVal[tr.dataset.n]=+tr.dataset.v; });
+  const ranked=boardView.filter(p=>!p.prov), guests=boardView.filter(p=>p.prov);
+  const rMin=Math.min(...boardView.map(p=>p.rating)), rMax=Math.max(...boardView.map(p=>p.rating));
+  const sorter=(a,b)=>{const x=a[sortKey],y=b[sortKey]; if(x==null) return 1; if(y==null) return -1; return (typeof x==="string"? x.localeCompare(y): x-y)*sortDir;};
+  const row=p=>`<tr data-n="${p.name}" data-v="${p.rating}"${p.prov?' class="guest"':""}>${COLS.map(c=>{
       const v=p[c.k];
-      if(c.k==="rank") return `<td class="l"><span class="rank r${p.rank}">${p.rank}</span></td>`;
+      if(c.k==="rank") return `<td class="l">${p.rank?`<span class="rank r${p.rank}">${p.rank}</span>`:`<span class="rank guest">–</span>`}</td>`;
       if(c.k==="name") return `<td class="l name">${p.name}</td>`;
-      if(c.k==="moveSort"){ const mv=p.isNew?'<span class="mv new">NEW</span>':p.move>0?`<span class="mv up">▲${p.move}</span>`:p.move<0?`<span class="mv down">▼${-p.move}</span>`:'<span class="mv same">–</span>'; const d=p.lastDelta!=null?` <span class="md ${p.lastDelta>=0?"up":"down"}">${p.lastDelta>=0?"+":""}${Math.round(p.lastDelta)}</span>`:""; return `<td>${mv}${d}</td>`; }
+      if(c.k==="moveSort"){ const mv=p.prov?'<span class="mv same">·</span>':p.isNew?'<span class="mv new">NEW</span>':p.move>0?`<span class="mv up">▲${p.move}</span>`:p.move<0?`<span class="mv down">▼${-p.move}</span>`:'<span class="mv same">–</span>'; const d=p.lastDelta!=null?` <span class="md ${p.lastDelta>=0?"up":"down"}">${fmtDelta(p.lastDelta)}</span>`:""; return `<td>${mv}${d}</td>`; }
       if(c.k==="tierName") return `<td class="l"><span class="titlecell">${seal(p.tier)}${p.tier.name}</span></td>`;
       if(c.k==="favClan") return `<td class="l">${v?mon(v,22).replace("<svg",'<svg class="mon"')+v:"—"}</td>`;
-      if(c.k==="elo"){const w=6+ (v-eloMin)/(eloMax-eloMin||1)*46; return `<td>${Math.round(v)}<span class="bar" style="width:${w}px;opacity:${p.prov?.35:1}"></span></td>`;}
+      if(c.k==="rating"){ const w=6+(v-rMin)/(rMax-rMin||1)*30;
+        return `<td>${fmtR(v)} <span class="pm" title="Skill estimate ${p.mu.toFixed(1)}, give or take ${(TS.Z*p.sig).toFixed(1)}">±${(TS.Z*p.sig).toFixed(0)}</span><span class="bar" style="width:${w}px;opacity:${p.prov?.35:1}"></span></td>`; }
       return `<td>${c.fmt?c.fmt(v):v}</td>`;
-    }).join("")}</tr>`).join("")+"</tbody>";
-  document.querySelectorAll("#board th").forEach(th=>th.onclick=()=>{const k=th.dataset.k; if(k==="rank"){sortKey="elo";sortDir=-1;} else if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=(k==="name"||k==="favClan")?1:-1;} renderBoard();});
+    }).join("")}</tr>`;
+  document.getElementById("board").innerHTML =
+    `<thead><tr>${COLS.map(c=>`<th class="${c.cls||""}" data-k="${c.k}">${c.l}${sortKey===c.k?(sortDir<0?" ▼":" ▲"):""}</th>`).join("")}</tr></thead>`+
+    `<tbody>${[...ranked].sort(sorter).map(row).join("")}</tbody>`+
+    (guests.length?`<tbody class="unranked"><tr class="ugroup"><td colspan="${COLS.length}"><button type="button" id="unrankedToggle" aria-expanded="${showUnranked}">${showUnranked?"▾":"▸"} Unranked · ${guests.length} warlord${guests.length===1?"":"s"} with 1 battle</button></td></tr>${showUnranked?[...guests].sort(sorter).map(row).join(""):""}</tbody>`:"");
+  const ut=document.getElementById("unrankedToggle"); if(ut) ut.onclick=()=>{ showUnranked=!showUnranked; renderBoard(); };
+  animateBoard(oldPos, oldVal);
+  document.querySelectorAll("#board th").forEach(th=>th.onclick=()=>{const k=th.dataset.k; if(k==="rank"){sortKey="rating";sortDir=-1;} else if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=(k==="name"||k==="favClan")?1:-1;} renderBoard();});
 }
 // time-travel controls
 function setBoardView(n){
@@ -1331,49 +1392,56 @@ function setBoardView(n){
   renderRecap(); renderBoard();
 }
 document.getElementById("bSlider").max=GAMES.length;
-document.getElementById("bSlider").addEventListener("input",e=>setBoardView(+e.target.value));
-document.getElementById("bPrev").onclick=()=>setBoardView(viewN-1);
-document.getElementById("bNext").onclick=()=>setBoardView(viewN+1);
-document.getElementById("bLatest").onclick=()=>setBoardView(GAMES.length);
+// standings playback: step through every battle, one every 1.5s
+let boardTimer=null;
+const bPlay=document.getElementById("bPlay");
+function stopBoardPlay(){ clearInterval(boardTimer); boardTimer=null; bPlay.textContent="▶ Replay the war"; bPlay.setAttribute("aria-label","Replay every battle"); }
+bPlay.onclick=()=>{
+  if(boardTimer){ stopBoardPlay(); return; }
+  if(viewN>=GAMES.length) setBoardView(1);
+  bPlay.textContent="⏸ Pause"; bPlay.setAttribute("aria-label","Pause");
+  boardTimer=setInterval(()=>{ setBoardView(viewN+1); if(viewN>=GAMES.length) stopBoardPlay(); },1500);
+};
+document.getElementById("bSlider").addEventListener("input",e=>{ stopBoardPlay(); setBoardView(+e.target.value); });
+document.getElementById("bPrev").onclick=()=>{ stopBoardPlay(); setBoardView(viewN-1); };
+document.getElementById("bNext").onclick=()=>{ stopBoardPlay(); setBoardView(viewN+1); };
+document.getElementById("bLatest").onclick=()=>{ stopBoardPlay(); setBoardView(GAMES.length); };
 setBoardView(GAMES.length);
 
-/* ---------- "How is Elo calculated?" with a worked example from the latest full battle ---------- */
+// "How are ratings calculated?": plain-language steps + the latest winner as an example
 (function(){
-  const box=document.getElementById("eloHow"); if(!box) return;
-  const g=[...GAMES].reverse().find(x=>!x.partial && x.rows.length>=3);
-  let example="";
+  const g=[...GAMES].reverse().find(x=>!x.partial && x.rows.length>=3), el=document.getElementById("tsBody"); if(!el) return;
+  let ex="";
   if(g){
-    const before=n=> g.n===1 ? START : (eloTimeline[g.n-2].ratings[n] ?? START);
-    const w=g.rows[0], Rw=before(w.name), kk=K/(g.size-1);
-    let total=0;
-    const rows=g.rows.slice(1).map(o=>{
-      const Ro=before(o.name), E=1/(1+10**((Ro-Rw)/400)), S=w.score>o.score?1:w.score<o.score?0:.5, d=kk*(S-E); total+=d;
-      return `<tr><td class="l">${o.name}</td><td>${Math.round(Ro)}</td><td>${Math.round(E*100)}%</td><td>${S===1?"beat":S===.5?"tied":"lost to"}</td><td class="${d>=0?"up":"down"}">${d>=0?"+":""}${d.toFixed(1)}</td></tr>`;
-    }).join("");
-    example=`<h4 class="serif">Worked example: ${w.name} in Battle ${g.n}${g.date?` (${g.date})`:""}</h4>
-      <p>${w.name} went in rated <b>${Math.round(Rw)}</b> at a ${g.size}-player table, so each matchup is worth up to <b>${kk.toFixed(1)}</b> points (32 ÷ ${g.size-1}).</p>
-      <div class="tablewrap"><table class="elox"><thead><tr><th class="l">Opponent</th><th>Their rating</th><th>${w.name}'s expected chance</th><th>Result</th><th>Points</th></tr></thead><tbody>${rows}</tbody>
-      <tfoot><tr><td class="l" colspan="4"><b>Total change</b></td><td class="${total>=0?"up":"down"}"><b>${total>=0?"+":""}${total.toFixed(1)}</b></td></tr></tfoot></table></div>
-      <p class="s">Points = ${kk.toFixed(1)} × (result − expected chance). Beating someone you were expected to beat earns a little; beating someone rated above you earns a lot.</p>`;
+    const w=g.rows[0].name, b=g.n>1?eloTimeline[g.n-2].ts[w]:null, a=eloTimeline[g.n-1].ts[w];
+    const newbie=g.rows.find(r=>!(g.n>1 && eloTimeline[g.n-2].ts[r.name]));
+    const row=(name,B,A)=>`<tr><td class="l">${name}</td><td>${B.mu.toFixed(1)} → ${A.mu.toFixed(1)}</td><td>±${(TS.Z*B.sig).toFixed(1)} → ±${(TS.Z*A.sig).toFixed(1)}</td><td><b>${fmtR(tsShown(B))} → ${fmtR(tsShown(A))}</b></td></tr>`;
+    const base={mu:TS.MU0,sig:TS.SIG0};
+    ex=`<h4 class="serif">Example: Battle ${g.n}${g.date?` (${g.date})`:""}</h4>
+      <div class="tablewrap"><table class="elox"><thead><tr><th class="l">Warlord</th><th>Skill (μ)</th><th>Give or take (±2σ)</th><th>Rating (μ − 2σ)</th></tr></thead><tbody>
+      ${b?row(`${w} (won)`,b,a):""}${newbie?row(`${newbie.name} (first battle, ${ordinal(newbie.place)})`,base,eloTimeline[g.n-1].ts[newbie.name]):""}
+      </tbody></table></div>
+      ${newbie?`<p class="s">${newbie.name}'s skill barely moved, but the rating rose because the page became much surer about them. That's how newcomers climb.</p>`:""}`;
   }
-  box.querySelector(".elobody").innerHTML=`
+  el.innerHTML=`
     <ol class="elosteps">
-      <li><b>Everyone starts at 1500.</b></li>
-      <li><b>Each battle is scored as head-to-head matchups.</b> In a 5-player game, you're compared with each of the other 4: finishing above them is a win, below is a loss, the same score is a draw.</li>
-      <li><b>Each matchup has an expected result</b> based on the rating gap. Equal ratings = 50% each. 100 points higher ≈ 64% expected.</li>
-      <li><b>You gain or lose the difference</b> between what happened and what was expected, scaled so a whole battle is worth up to 32 points.</li>
-      <li><b>Upsets move ratings most.</b> Beating higher-rated players is worth more than beating lower-rated ones.</li>
+      <li><b>Every warlord has two numbers:</b> a skill estimate <b>μ</b> (starts at 25) and an uncertainty <b>σ</b> (starts high, at 8.3).</li>
+      <li><b>Your rating is μ − 2σ</b>, the skill we're about 97% sure you have <i>at least</i>. Everyone starts at ${fmtR(START)}.</li>
+      <li><b>Each battle is scored as head-to-head matchups:</b> finishing above someone counts as beating them. Only finishing order matters, not the point spread.</li>
+      <li><b>After each battle, μ moves:</b> beating people you were expected to lose to moves you most.</li>
+      <li><b>…and σ shrinks.</b> Every battle makes the page surer about you, so newcomers settle quickly and regulars barely move on one lucky or unlucky night.</li>
+      <li><b>The ± next to each rating</b> is how far your true skill could still be from μ. It shrinks the more you play.</li>
     </ol>
-    ${example}
-    <p class="s">Battles with missing scores only count the matchups we know (e.g. Battle 1 counts the winner beating everyone). Battle 2 doesn't count toward Elo because the other players weren't recorded.</p>`;
+    ${ex}
+    <p class="s">A simplified TrueSkill (Microsoft's rating system for multiplayer games): tied scores are skipped, Battle 1 only counts the winner beating everyone, and Battle 2 doesn't count because the other players weren't recorded. Clans and Kami don't affect ratings.</p>`;
 })();
 
-/* ---------- Elo line chart (with replay + standings race) ---------- */
+/* ---------- rating line chart (with replay + standings race) ---------- */
 // validated categorical palettes: light on parchment, dark on night surface
 const SERIES_DAY   = ["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"];
 const SERIES_NIGHT = ["#3987e5","#d95926","#199e70","#c98500","#d55181","#0ca30c","#9085e9","#e66767"];
 const isNight = () => document.documentElement.dataset.theme === "night";
-// chart lines: the 8 ranked warlords with the most battles (8 = size of the validated color palette), ordered by Elo
+// chart lines: the 8 ranked warlords with the most battles (8 = size of the validated color palette), ordered by rating
 const regulars = players.filter(p=>p.games>=PROVISIONAL).sort((a,b)=>b.games-a.games || b.elo-a.elo).slice(0,8).sort((a,b)=>b.elo-a.elo);
 function paintSeries(){ const S=isNight()?SERIES_NIGHT:SERIES_DAY; regulars.forEach((p,i)=>p.color=S[i]); }
 paintSeries();
@@ -1382,16 +1450,37 @@ let upTo = GAMES.length;   // replay cursor: show results through this battle
 let replaying=false, replayTimer=null;
 const ratingAt = (name, gi) => gi===0 ? START : (eloTimeline[gi-1].ratings[name] ?? null);
 
+let lastChartUpTo=null;
+// replay polish: new line segments draw like a pen stroke, fresh dots pop in, end labels glide
+function animateEloChart(el, grow, oldLbl, stepFwd, jumped){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const svg=el.querySelector("svg"); if(!svg) return;
+  if(jumped){ svg.animate([{opacity:.35},{opacity:1}],{duration:350,easing:"ease-out"}); }
+  if(stepFwd){
+    grow.forEach(({name,prevD})=>{
+      const path=svg.querySelector(`path[data-n="${CSS.escape(name)}"]`); if(!path) return;
+      const full=path.getTotalLength(); let prev=0;
+      if(prevD){ const tmp=document.createElementNS("http://www.w3.org/2000/svg","path"); tmp.setAttribute("d",prevD); svg.appendChild(tmp); prev=tmp.getTotalLength(); tmp.remove(); }
+      if(full-prev<1) return;
+      path.style.strokeDasharray=full;
+      path.animate([{strokeDashoffset:full-prev},{strokeDashoffset:0}],{duration:900,easing:"cubic-bezier(.3,.6,.2,1)"}).onfinish=()=>{ path.style.strokeDasharray=""; };
+    });
+    svg.querySelectorAll("circle.fresh").forEach(c=>c.animate([{opacity:0,transform:"scale(.2)"},{opacity:0,offset:.6},{opacity:1,transform:"scale(1)"}],{duration:1000,easing:"ease-out"}));
+  }
+  svg.querySelectorAll("text.endlbl").forEach(t=>{ const o=oldLbl[t.dataset.n]; if(o==null) return; const dy=o-(+t.getAttribute("y")); if(Math.abs(dy)>0.5) t.animate([{transform:`translateY(${dy}px)`},{transform:"none"}],{duration:stepFwd?900:500,easing:"cubic-bezier(.2,.7,.2,1)"}); });
+}
 function eloChart(){
+  const grow=[];
   const W=1080,H=400,m={t:16,r:110,b:36,l:48};
   const iw=W-m.l-m.r, ih=H-m.t-m.b;
   const xs = i => m.l + i/(GAMES.length)*iw;  // x=0 is "start"
   const vals = regulars.flatMap(p=>p.history.map(h=>h.elo)).concat(START);
-  const lo = Math.floor((Math.min(...vals)-10)/20)*20, hi = Math.ceil((Math.max(...vals)+10)/20)*20;
+  const GRID=2, lo = Math.floor((Math.min(...vals)-1)/GRID)*GRID, hi = Math.ceil((Math.max(...vals)+1)/GRID)*GRID;   // ratings live on a ~0-30 scale
   const ys = v => m.t + (hi-v)/(hi-lo)*ih;
   const cursor = upTo<GAMES.length;
-  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Elo rating over time">`;
-  for(let v=lo; v<=hi; v+=20){ s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${ys(v)}" y2="${ys(v)}" stroke="${v===START?"#b9ad97":"#ece2cc"}" ${v===START?'stroke-dasharray="4 4"':""}/><text x="${m.l-8}" y="${ys(v)+4}" text-anchor="end" font-size="11" fill="#8a8279">${v}</text>`; }
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Rating over time">`;
+  for(let v=lo; v<=hi; v+=GRID){ s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${ys(v)}" y2="${ys(v)}" stroke="#ece2cc"/><text x="${m.l-8}" y="${ys(v)+4}" text-anchor="end" font-size="11" fill="#8a8279">${v}</text>`; }
+  s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${ys(START)}" y2="${ys(START)}" stroke="#b9ad97" stroke-dasharray="4 4"/><text x="${W-m.r-4}" y="${ys(START)-5}" text-anchor="end" font-size="10.5" fill="#8a8279">starting rating</text>`;
   for(let i=0;i<=GAMES.length;i++){ const on=cursor&&i===upTo; s+=`<text x="${xs(i)}" y="${H-12}" text-anchor="middle" font-size="11" fill="${on?"#c8102e":"#8a8279"}" font-weight="${on?700:400}">${i===0?"Start":"G"+i}</text>`; }
   if(cursor) s+=`<rect x="${xs(upTo)}" y="${m.t}" width="${xs(GAMES.length)-xs(upTo)}" height="${ih}" fill="#8a8279" opacity=".07"/>`;
   const ends=[];
@@ -1400,15 +1489,23 @@ function eloChart(){
     const hist=p.history.filter(h=>h.game<=upTo);
     const pts=[[0,START],...hist.map(h=>[h.game,h.elo])];
     const d=pts.map(([g,e],i)=>`${i?"L":"M"}${xs(g).toFixed(1)},${ys(e).toFixed(1)}`).join("");
-    s+=`<path d="${d}" fill="none" stroke="${p.color}" stroke-width="2.6" filter="url(#brush)" stroke-linejoin="round" stroke-linecap="round"/>`;
-    hist.forEach(h=>{ const fresh=cursor&&h.game===upTo; s+=`<circle cx="${xs(h.game)}" cy="${ys(h.elo)}" r="${fresh?6:4}" fill="${p.color}" stroke="#fbf6ea" stroke-width="2"/>`; });
+    // the line as it was one battle earlier, so a replay step can draw just the new segment
+    grow.push({name:p.name, prevD: pts.filter(([gn])=>gn<upTo).map(([g,e],i)=>`${i?"L":"M"}${xs(g).toFixed(1)},${ys(e).toFixed(1)}`).join("")});
+    s+=`<path data-n="${p.name}" d="${d}" fill="none" stroke="${p.color}" stroke-width="2.6" filter="url(#brush)" stroke-linejoin="round" stroke-linecap="round"/>`;
+    hist.forEach(h=>{ const fresh=cursor&&h.game===upTo; s+=`<circle${fresh?' class="fresh"':''} cx="${xs(h.game)}" cy="${ys(h.elo)}" r="${fresh?6:4}" fill="${p.color}" stroke="#fbf6ea" stroke-width="2"/>`; });
     const last=pts[pts.length-1]; ends.push({p, x:xs(last[0]), y:ys(last[1]), v:last[1]});
   });
   ends.sort((a,b)=>a.y-b.y); let prev=-99;
   ends.forEach(e=>{ e.ly=Math.max(e.y, prev+15); prev=e.ly; });
-  ends.forEach(e=>{ s+=`<line x1="${e.x+6}" x2="${W-m.r+8}" y1="${e.y}" y2="${e.ly}" stroke="#d8ccb3" stroke-dasharray="2 3"/><text x="${W-m.r+12}" y="${e.ly+4}" font-size="12" fill="#1d1a16">${e.p.name} <tspan fill="#8a8279">${Math.round(e.v)}</tspan></text>`; });
+  ends.forEach(e=>{ s+=`<line x1="${e.x+6}" x2="${W-m.r+8}" y1="${e.y}" y2="${e.ly}" stroke="#d8ccb3" stroke-dasharray="2 3"/><text class="endlbl" data-n="${e.p.name}" x="${W-m.r+12}" y="${e.ly+4}" font-size="12" fill="#1d1a16">${e.p.name} <tspan fill="#8a8279">${fmtR(e.v)}</tspan></text>`; });
   s+=`<line id="xh" y1="${m.t}" y2="${H-m.b}" stroke="#1d1a16" stroke-width="1" opacity="0"/><rect id="hit" x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent"/></svg><div class="tip" id="eloTip"></div>`;
-  const el=document.getElementById("eloChart"); el.innerHTML=s;
+  const el=document.getElementById("eloChart");
+  // remember label heights so they can glide to their new spot
+  const oldLbl={}; el.querySelectorAll("text.endlbl").forEach(t=>oldLbl[t.dataset.n]=+t.getAttribute("y"));
+  const stepFwd = upTo===lastChartUpTo+1, jumped = lastChartUpTo!=null && upTo!==lastChartUpTo && !stepFwd;
+  el.innerHTML=s;
+  animateEloChart(el, grow, oldLbl, stepFwd, jumped);
+  lastChartUpTo=upTo;
   const svg=el.querySelector("svg"), tip=el.querySelector("#eloTip"), xh=el.querySelector("#xh");
   el.querySelector("#hit").addEventListener("mousemove",ev=>{
     const r=svg.getBoundingClientRect(), sx=(ev.clientX-r.left)*W/r.width;
@@ -1416,7 +1513,7 @@ function eloChart(){
     xh.setAttribute("x1",xs(gi)); xh.setAttribute("x2",xs(gi)); xh.setAttribute("opacity",.3);
     const snap = gi===0? null : eloTimeline[gi-1];
     const list = regulars.filter(p=>!hidden.has(p.name)).map(p=>({p,v:ratingAt(p.name,gi), played: snap? snap.present.has(p.name):false})).filter(o=>o.v!=null).sort((a,b)=>b.v-a.v);
-    tip.innerHTML=`<b>${gi===0?"Start":"After battle "+gi}</b>`+list.map(o=>`<div class="row"><span><span class="sw" style="background:${o.p.color}"></span>${o.p.name}${o.played?" ⚔":""}</span><span>${Math.round(o.v)}</span></div>`).join("")+(gi?`<div style="color:#cbbfa8;margin-top:4px;font-size:11px">⚔ = played this battle</div>`:"");
+    tip.innerHTML=`<b>${gi===0?"Start":"After battle "+gi}</b>`+list.map(o=>`<div class="row"><span><span class="sw" style="background:${o.p.color}"></span>${o.p.name}${o.played?" ⚔":""}</span><span>${fmtR(o.v)}</span></div>`).join("")+(gi?`<div style="color:#cbbfa8;margin-top:4px;font-size:11px">⚔ = played this battle</div>`:"");
     tip.style.opacity=1;
     const px=(xs(gi)/W)*r.width; tip.style.left=(px>r.width*.6? px-tip.offsetWidth-12 : px+12)+"px"; tip.style.top="10px";
   });
@@ -1431,7 +1528,7 @@ function renderRace(){
   list.forEach((o,i)=>{
     let r=raceRows[o.p.name];
     if(!r){ r=document.createElement("div"); r.className="rrow"; raceEl.appendChild(r); raceRows[o.p.name]=r; }
-    r.innerHTML=`<span class="rk">${i+1}</span><span class="dot" style="background:${o.p.color}"></span><span class="nm">${o.p.name}</span><span class="ev">${Math.round(o.v)}</span>`;
+    r.innerHTML=`<span class="rk">${i+1}</span><span class="dot" style="background:${o.p.color}"></span><span class="nm">${o.p.name}</span><span class="ev">${fmtR(o.v)}</span>`;
     r.style.top=(i*36)+"px"; r.style.order=i;   // order: used by the phone layout, where rows sit in a grid
     if(lastOrder && lastOrder.indexOf(o.p.name)>i){ r.classList.remove("moved"); void r.offsetWidth; r.classList.add("moved"); }
   });
@@ -1445,6 +1542,8 @@ function renderRace(){
   } else news.innerHTML="";
   document.getElementById("replayLabel").textContent = upTo===0 ? "Before the first battle" : upTo===GAMES.length ? "After all battles" : `After battle ${upTo} of ${GAMES.length}`;
   document.getElementById("replaySlider").value=upTo;
+  document.getElementById("rPrev").disabled = upTo<=0;
+  document.getElementById("rNext").disabled = upTo>=GAMES.length;
 }
 
 function renderLegend(){
@@ -1465,6 +1564,8 @@ replayBtn.onclick=()=>{
 };
 document.getElementById("replaySlider").max=GAMES.length;
 document.getElementById("replaySlider").addEventListener("input",ev=>{ stopReplay(); upTo=+ev.target.value; eloChart(); });
+document.getElementById("rPrev").onclick=()=>{ stopReplay(); if(upTo>0){ upTo--; eloChart(); } };
+document.getElementById("rNext").onclick=()=>{ stopReplay(); if(upTo<GAMES.length){ upTo++; eloChart(); } };
 eloChart();
 
 /* ---------- awards ---------- */
@@ -1485,7 +1586,7 @@ eloChart();
   const lp = Object.entries(lastPlace).sort((a,b)=>b[1]-a[1])[0];
   const mostWins = by(players,p=>p.wins);
   const A = [
-    ["crown","The Shogun",reg[0].name,`Highest Elo among regulars (${Math.round(reg[0].elo)}).`],
+    ["crown","The Shogun",reg[0].name,`Highest rating among regulars (${fmtR(reg[0].elo)}).`],
     ["scroll","Most Victories",mostWins.name,`${mostWins.wins} wins in ${mostWins.games} games${players.filter(p=>p.wins===mostWins.wins).length>1?" (tied with "+players.filter(p=>p.wins===mostWins.wins&&p!==mostWins).map(p=>p.name).join(", ")+")":""}.`],
     ["katana","Legendary Conquest",topScore.name,`${topScore.score} VP in game ${topScore.game}, the highest score ever recorded.`],
     ["wave","Tsunami",blow.w.name,`Won game ${blow.g.n} by ${blow.m} points, the biggest winning margin.`],
@@ -1493,9 +1594,9 @@ eloChart();
     ["shield","Iron Samurai",iron.name,`Played ${iron.games} of ${GAMES.length} recorded games.`],
     ["sake","Steady Hand",consistent.name,`Most consistent scores among regulars (± ${sd(consistent).toFixed(1)} VP).`],
     ["oni","Dishonored",lowest.name,`Only ${lowest.score} VP in game ${lowest.game}, the lowest score recorded.`],
-    ["oni","The Ronin",ronin.name,`Lowest Elo among regulars (${Math.round(ronin.elo)}).`],
+    ["oni","The Ronin",ronin.name,`Lowest rating among regulars (${fmtR(ronin.elo)}).`],
     ["oni","Bottom of the Pond",lp[0],`Finished last ${lp[1]} time${lp[1]>1?"s":""}.`],
-    ["crown","Rising Star",climber.name,`Biggest Elo gain in their most recent game (+${Math.round(climbAmt)}).`],
+    ["crown","Rising Star",climber.name,`Biggest rating gain in their most recent battle (+${climbAmt.toFixed(1)}).`],
   ];
   document.getElementById("awards").innerHTML = A.map(([i,t,w,d])=>`<div class="award"><div class="ico">${ICONS[i]}</div><div><h3 class="serif">${t}</h3><div class="who">${w}</div><p>${d}</p></div></div>`).join("");
 })();
@@ -1706,7 +1807,7 @@ hbar("avgChart", withScores.map(p=>({label:p.name+(p.prov?" *":""), v:p.avg, lo:
 /* ---------- game log ---------- */
 document.getElementById("games").innerHTML = GAMES.map(g=>{
   const rows=g.rows.map(r=>{
-    const d=r.delta; const ds = d==null? "" : `<span class="${d>=0?"up":"down"}">${d>=0?"+":""}${Math.round(d)}</span>`;
+    const d=r.delta; const ds = d==null? "" : `<span class="${d>=0?"up":"down"}">${d>=0?"+":""}${d.toFixed(1)}</span>`;
     return `<li><span class="pl">${r.place??"–"}</span>${r.clan?mon(r.clan,22).replace("<svg",'<svg class="mon"'):'<svg class="mon" viewBox="0 0 10 10"></svg>'}<span class="nm">${r.name}${r.place===1?`<span class="hanko" title="Victory">勝</span>`:""}${r.clan?` <span style="color:#8a8279;font-size:12px">· ${r.clan}</span>`:""}</span><span class="sc">${r.score??"?"}</span><span class="de">${ds}</span></li>`;
   }).join("");
   const extra = g.partial==="unknownField" ? `<li><span class="nm" style="color:#8a8279">+ ${g.size-1} unrecorded players</span></li>` : "";
@@ -1799,16 +1900,25 @@ document.querySelectorAll(".tile .n").forEach((el,i)=>{
 /* =========================================================
    HONOR TRACK + TIER LEGEND
    ========================================================= */
-function renderHonor(){
-  const regs = players.filter(p=>!p.prov);
-  const STEP=5, lo=Math.floor((Math.min(...regs.map(p=>p.elo))-6)/STEP)*STEP, hi=Math.ceil((Math.max(...regs.map(p=>p.elo))+6)/STEP)*STEP;
+// track range covers every battle's ranked ratings, so it doesn't jump around during a replay
+const HONOR_RANGE = (()=>{ let mn=Infinity, mx=-Infinity;
+  for(let n=1;n<=GAMES.length;n++) standingsAt(n).filter(p=>!p.prov).forEach(p=>{ mn=Math.min(mn,p.rating); mx=Math.max(mx,p.rating); });
+  if(!isFinite(mn)){ mn=START; mx=START; }
+  return { lo:Math.floor(mn)-1, hi:Math.ceil(mx)+1 }; })();
+let honorN = GAMES.length;
+function renderHonor(N=honorN){
+  honorN = N;
+  const view = standingsAt(N), regs = view.filter(p=>!p.prov);
+  const STEP=1, {lo,hi}=HONOR_RANGE;   // one space per rating point
   const n=(hi-lo)/STEP+1, sp=30, W=760, top=10, H=top+n*sp+10, tx=120;
   const yOf = v => top + sp/2 + (hi - v)/STEP*sp;   // space centres sit half a space inside the bands
+  // remember marker positions so they can glide to the new ones
+  const host=document.getElementById("honorTrack"), oldPos={};
+  host.querySelectorAll("g.hmark").forEach(g=>{ oldPos[g.dataset.n]={x:+g.dataset.x, y:+g.dataset.y}; });
   let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Honor track">`;
-  // tier bands
-  // band edges fall halfway between spaces, so neighbouring bands meet cleanly
+  // tier bands; edges fall halfway between spaces, so neighbouring bands meet cleanly
   const edge = v => yOf(v - STEP/2);
-  const bands=[["daimyo",Infinity,1520],["samurai",1520,1500],["ashigaru",1500,1480],["peasant",1480,-Infinity]];
+  const bands=[["daimyo",Infinity,TIER.daimyo.min],["samurai",TIER.daimyo.min,TIER.samurai.min],["ashigaru",TIER.samurai.min,TIER.ashigaru.min],["peasant",TIER.ashigaru.min,-Infinity]];
   bands.forEach(([k,a,b])=>{
     const t=TIER[k], y1=Math.max(top-4, a===Infinity?top-4:edge(a)), y2=Math.min(H-6, b===-Infinity?H-6:edge(b));
     if(y2<=y1) return;
@@ -1819,26 +1929,48 @@ function renderHonor(){
   s+=`<rect x="${tx-6}" y="${top-2}" width="52" height="${n*sp+4}" rx="10" fill="#6b4a2b" filter="url(#brush)"/>`;
   for(let i=0;i<n;i++){ const v=hi-i*STEP, y=yOf(v);
     s+=`<rect x="${tx}" y="${y-sp/2+3}" width="40" height="${sp-6}" rx="5" fill="#e9d6b0" stroke="#4a321c" stroke-width="1"/>`;
-    s+=`<text class="cell" x="${tx+20}" y="${y+4}" text-anchor="middle" font-size="11" fill="#4a321c" font-weight="${v%20===0?700:400}">${v}</text>`; }
-  // markers, stacked sideways when they share a space
+    s+=`<text class="cell" x="${tx+20}" y="${y+4}" text-anchor="middle" font-size="11" fill="#4a321c" font-weight="${v%5===0?700:400}">${v}</text>`; }
+  // markers, stacked sideways when they share a space; positioned with a CSS transform so they can glide
   const slots={};
   regs.forEach(p=>{
-    // floor so a marker never sits in a higher tier than its rating
-    const v=Math.floor(p.elo/STEP)*STEP, k=v; const i=(slots[k]=(slots[k]||0)+1)-1;
+    const v=Math.floor(p.rating/STEP)*STEP; const i=(slots[v]=(slots[v]||0)+1)-1;   // floor: never shown in a higher tier than earned
     const x=tx+60+i*150, y=yOf(v);
-    s+=`<g class="hmark" data-n="${p.name}">${i===0?`<line x1="${tx+42}" x2="${x}" y1="${y}" y2="${y}" stroke="#8a8279" stroke-dasharray="2 3"/>`:""}`;
-    s+=`<g transform="translate(${x},${y-13})">${mon(p.favClan,26)}</g>`;
-    s+=`<text x="${x+32}" y="${y+5}" font-size="13.5" font-weight="700" fill="#1d1a16">${p.name}${p.tier.key==="shogun"?" 👑":""}<tspan dx="6" font-size="12" font-weight="400" fill="#8a8279">${Math.round(p.elo)}</tspan></text></g>`;
+    s+=`<g class="hmark" data-n="${p.name}" data-x="${x}" data-y="${y}" style="transform:translate(${x}px,${y}px)">`;
+    s+=`<line x1="${tx+42-x}" x2="0" y1="0" y2="0" stroke="#8a8279" stroke-dasharray="2 3" opacity="${i===0?1:0}"/>`;
+    s+=`<g transform="translate(0,-13)">${mon(p.favClan,26)}</g>`;
+    s+=`<text x="32" y="5" font-size="13.5" font-weight="700" fill="#1d1a16">${p.name}${p.tier.key==="shogun"?" 👑":""}<tspan dx="6" font-size="12" font-weight="400" fill="#8a8279">${fmtR(p.rating)}</tspan></text></g>`;
   });
   s+=`</svg>`;
-  document.getElementById("honorTrack").innerHTML=s;
+  host.innerHTML=s;
+  if(!matchMedia("(prefers-reduced-motion: reduce)").matches) host.querySelectorAll("g.hmark").forEach(g=>{
+    const o=oldPos[g.dataset.n], x=+g.dataset.x, y=+g.dataset.y;
+    if(!o){ if(Object.keys(oldPos).length) g.animate([{opacity:0},{opacity:1}],{duration:500,easing:"ease-out"}); return; }
+    if(o.x!==x || o.y!==y) g.animate([{transform:`translate(${o.x}px,${o.y}px)`},{transform:`translate(${x}px,${y}px)`}],{duration:700,easing:"cubic-bezier(.2,.7,.2,1)"});
+  });
 
-  const ronin = players.filter(p=>p.prov).map(p=>p.name);
+  const ronin = view.filter(p=>p.prov).map(p=>p.name);
   document.getElementById("tierLegend").innerHTML = TIERS.map(t=>{
-    const who = t.key==="ronin" ? ronin : players.filter(p=>p.tier===t).map(p=>p.name);
+    const who = t.key==="ronin" ? ronin : regs.filter(p=>p.tier===t).map(p=>p.name);
     return `<div class="tier">${seal(t,false)}<div><b class="serif">${t.name}</b><span>${t.desc}</span>${who.length?`<span style="display:block;margin-top:2px;color:var(--ink)"><b style="display:inline;font-size:12.5px">Holders:</b> ${who.join(", ")}</span>`:""}</div></div>`;
   }).join("");
+  // controls
+  const g=GAMES[N-1], latest=N===GAMES.length;
+  document.getElementById("hSlider").value=N;
+  document.getElementById("hLabel").innerHTML=`After <b>Battle ${N}</b>${g&&g.date?` (${g.date})`:""}${latest?' <span class="s">· latest</span>':` <span class="s">of ${GAMES.length}</span>`}`;
+  document.getElementById("hPrev").disabled = N<=1;
+  document.getElementById("hNext").disabled = latest;
 }
+// honor track replay
+(function(){
+  const sl=document.getElementById("hSlider"), play=document.getElementById("hPlay"); let timer=null;
+  sl.max=GAMES.length;
+  const stop=()=>{ clearInterval(timer); timer=null; play.textContent="▶ Replay the war"; };
+  play.onclick=()=>{ if(timer){ stop(); return; } if(honorN>=GAMES.length) renderHonor(1);
+    play.textContent="⏸ Pause"; timer=setInterval(()=>{ renderHonor(honorN+1); if(honorN>=GAMES.length) stop(); },1500); };
+  sl.addEventListener("input",()=>{ stop(); renderHonor(+sl.value); });
+  document.getElementById("hPrev").onclick=()=>{ stop(); renderHonor(Math.max(1,honorN-1)); };
+  document.getElementById("hNext").onclick=()=>{ stop(); renderHonor(Math.min(GAMES.length,honorN+1)); };
+})();
 renderHonor();
 
 /* =========================================================
@@ -1929,10 +2061,14 @@ renderHonor();
   document.getElementById("stars").innerHTML = Array.from({length:70},()=>{ const x=Math.random()*1200, y=Math.random()*260, r=Math.random()*1.4+.3;
     return `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(1)}" opacity="${(.3+Math.random()*.7).toFixed(2)}"/>`; }).join("");
   const btn=document.getElementById("themeToggle");
+  let themeReady=false;   // the first apply() is the page load, which already animates the sky
   function apply(t){
     document.documentElement.dataset.theme=t;
     btn.textContent = t==="night" ? "☀️ Day" : "🌙 Night";
     paintSeries(); renderLegend(); eloChart();
+    // replay the sky: the sun rises again on switching to day, the moon on switching to night
+    if(themeReady && !matchMedia("(prefers-reduced-motion: reduce)").matches){ const sky=document.querySelector(t==="night"?".moonrise":".sunrise"); if(sky) sky.animate([{transform:"translateY(300px)"},{transform:"none"}],{duration:2600,easing:"cubic-bezier(.2,.7,.2,1)"}); }
+    themeReady=true;
   }
   btn.onclick=()=>{ const t=isNight()?"day":"night"; localStorage.setItem("rs-theme-choice",t); apply(t); };  // only an explicit click is remembered
   apply(document.documentElement.dataset.theme==="night"?"night":"day");
