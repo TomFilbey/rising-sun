@@ -1,0 +1,1844 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  RISING SUN · SCROLL OF HONOR. One self-contained file: open it in any browser, no internet needed.
+
+  Where things live (search for these markers):
+    <style>                       all styling (day theme, night-theme overrides, mobile tweaks at the end)
+    <header class="hero">         animated banner and stat tiles
+    <nav class="tabs">            the three screens: #stats, #record, #ledger
+    data-screen="..."             the markup for each screen
+    <script id="battle-data">     THE BATTLE DATA (JSON). "Download updated page" rewrites this block.
+    main <script>, in order:      load data / working copy, Kami & card info, clan emblems, Elo + stats,
+                                  each Stats section, the form, banner + backups, screen router, ledger
+
+  Saving: new battles and ledger edits are kept in this browser (localStorage) until someone presses
+  "Download updated page", which writes a fresh copy of this file with everything built in.
+  Checking: run  node tools/check.mjs  to validate the battle data and the page's scripts.
+-->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Rising Sun — The Scroll of Honor</title>
+<script>
+  // pick the theme before first paint: saved choice, else day
+  (function(){ const t=localStorage.getItem("rs-theme-choice") || "day"; document.documentElement.dataset.theme=t; })();
+</script>
+<style>
+  :root{
+    --paper:#fbf6ea; --paper-2:#f3e9d2; --ink:#1d1a16; --ink-2:#55504a; --ink-3:#8a8279;
+    --line:#e2d6bd; --sun:#c8102e; --sun-2:#e8473b; --gold:#b8892b;
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+    --muted-series:#c9bfae;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper-2);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;line-height:1.45}
+  .serif{font-family:"Yu Mincho","Hiragino Mincho ProN","Noto Serif JP",Georgia,serif}
+  a{color:var(--sun)}
+
+  /* ---------- hero ---------- */
+  header.hero{position:relative;overflow:hidden;background:#141210;color:#f6efe0;padding:64px 24px 72px;text-align:center}
+  header.hero svg.bg{position:absolute;inset:0;width:100%;height:100%}
+  .hero .inner{position:relative;max-width:900px;margin:0 auto}
+  .hero h1{font-size:clamp(40px,7vw,78px);margin:0;letter-spacing:.06em;font-weight:700}
+  .hero h1 span{color:var(--sun-2)}
+  .hero .kanji{font-size:22px;letter-spacing:.6em;color:#d9c9a6;margin-bottom:8px}
+  .hero p.sub{display:flex;align-items:center;justify-content:center;gap:16px;color:#f3e3c0;font-size:clamp(19px,2.4vw,25px);font-style:italic;letter-spacing:.06em;margin:12px 0 0;text-shadow:0 1px 3px #000,0 0 12px #000}
+  .hero p.sub .rule{position:relative;display:inline-block;width:clamp(36px,8vw,84px);height:1px;background:linear-gradient(90deg,transparent,#d6b465)}
+  .hero p.sub .rule:last-child{background:linear-gradient(90deg,#d6b465,transparent)}
+  .hero p.sub .rule::after{content:"";position:absolute;top:-3px;width:7px;height:7px;background:#d6b465;transform:rotate(45deg)}
+  .hero p.sub .rule:first-child::after{right:-2px}
+  .hero p.sub .rule:last-child::after{left:-2px}
+  .hero p.tag{margin:8px 0 0;font-size:12px;letter-spacing:.38em;text-transform:uppercase;color:#cbbfa8;text-shadow:0 1px 3px #000,0 0 10px #000}
+  .tiles{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:32px}
+  .tile{background:rgba(251,246,234,.08);border:1px solid rgba(251,246,234,.2);border-radius:10px;padding:12px 18px;min-width:130px}
+  .tile .n{font-size:32px;font-weight:700;color:#fff}
+  .tile .l{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:#cbbf a8;color:#cbbfa8}
+
+  /* ---------- intro animation ---------- */
+  .sunrise{animation:rise 2.6s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes rise{from{transform:translateY(300px)}to{transform:none}}
+  #rays{animation:spin 120s linear infinite, raysIn 2s ease 1.4s both}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes raysIn{from{opacity:0}to{opacity:1}}
+  .crane{animation:drift 14s ease-in-out infinite alternate}
+  .crane:nth-child(2){animation-duration:18s}.crane:nth-child(3){animation-duration:11s}
+  @keyframes drift{from{transform:translate(-30px,6px)}to{transform:translate(40px,-8px)}}
+  .hero .kanji{animation:fadeUp 1s ease .9s both}
+  .hero h1{animation:titleIn 1.6s cubic-bezier(.2,.7,.2,1) 1.1s both;filter:url(#inkEdge)}
+  @keyframes titleIn{from{opacity:0;letter-spacing:.5em}to{opacity:1;letter-spacing:.06em}}
+  .hero p.sub{animation:fadeUp 1s ease 1.9s both}
+  .hero p.tag{animation:fadeUp 1s ease 2.1s both}
+  .tile{animation:fadeUp .8s ease both}
+  .tile:nth-child(1){animation-delay:2.2s}.tile:nth-child(2){animation-delay:2.35s}.tile:nth-child(3){animation-delay:2.5s}.tile:nth-child(4){animation-delay:2.65s}.tile:nth-child(5){animation-delay:2.8s}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .hero .brushline{display:block;margin:6px auto 0;width:min(520px,80%);height:22px;clip-path:inset(0 100% 0 0);animation:paint 1.2s cubic-bezier(.6,.05,.3,1) 2s forwards}
+  @keyframes paint{to{clip-path:inset(0 0 0 0)}}
+
+  /* ---------- petals ---------- */
+  #petals{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:0}
+  header.hero,main,footer{position:relative;z-index:1}
+  #petalToggle{position:fixed;right:16px;bottom:16px;z-index:10;font:inherit;font-size:13px;border:1px solid var(--line);background:#fffaf0;color:var(--ink-2);padding:6px 12px;border-radius:20px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+
+  /* ---------- hanko seals ---------- */
+  .hanko{display:inline-flex;align-items:center;justify-content:center;background:var(--sun);color:#fff;font-family:"Yu Mincho","Noto Serif JP",serif;font-weight:700;border-radius:5px;
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.4);transform:rotate(-8deg);filter:url(#stamp)}
+  .game li .hanko{width:22px;height:22px;font-size:13px;margin-left:6px}
+  .pod .hanko{position:absolute;top:12px;right:14px;width:44px;height:44px;font-size:24px}
+  .pod{position:relative}
+
+  /* ---------- replay ---------- */
+  .replay{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:4px 0 8px}
+  .replay button,#themeToggle{font:inherit;font-size:14px;font-weight:600;border:0;background:var(--sun);color:#fff;padding:8px 16px;border-radius:22px;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.15)}
+  .replay button:hover{filter:brightness(1.08)}
+  .replay input[type=range]{flex:1;min-width:180px;max-width:420px;accent-color:var(--sun)}
+  #replayLabel{font-size:13px;color:var(--ink-2);min-width:150px}
+  .news{min-height:26px;font-size:14px;color:var(--ink);margin-bottom:4px}
+  .news .hanko{width:22px;height:22px;font-size:13px;margin-right:8px;vertical-align:middle}
+  .elowrap{display:grid;grid-template-columns:1fr 210px;gap:16px;align-items:start}
+  .race{position:relative;height:290px;margin-top:10px}
+  .race .rrow{position:absolute;left:0;right:0;height:32px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:8px;background:var(--card);border:1px solid var(--line);
+    transition:top .6s cubic-bezier(.3,.7,.2,1);font-size:13.5px}
+  .race .rrow .rk{width:16px;color:var(--ink-3);font-weight:700}
+  .race .rrow .dot{width:10px;height:10px;border-radius:50%}
+  .race .rrow .nm{flex:1;font-weight:600}
+  .race .rrow .ev{color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .race .rrow.moved{animation:flash .9s ease}
+  @keyframes flash{0%{box-shadow:0 0 0 0 rgba(200,16,46,.6)}100%{box-shadow:0 0 0 10px rgba(200,16,46,0)}}
+
+  /* ---------- honor track & tiers ---------- */
+  .honorwrap{display:grid;grid-template-columns:1fr 300px;gap:22px;align-items:start}
+  .tiers{display:flex;flex-direction:column;gap:8px}
+  .tier{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--card)}
+  .tier .seal{flex:0 0 auto}
+  .tier b{display:block;font-size:15px}
+  .tier div > span{font-size:12.5px;color:var(--ink-2)}
+  .seal{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 4px;border-radius:5px;color:#fff;font-family:"Yu Mincho","Noto Serif JP",serif;font-weight:700;font-size:13px;
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.35);transform:rotate(-5deg);writing-mode:vertical-rl;letter-spacing:-1px}
+  .seal.sm{min-width:22px;height:24px;font-size:10.5px;padding:0 2px}
+  .titlecell{display:inline-flex;align-items:center;gap:6px}
+
+  /* ---------- matchmaker & rivals ---------- */
+  .match,.rivals{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:14px}
+  .mcard,.rcard{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:14px 16px}
+  .mcard h4,.rcard h4{margin:0 0 8px;font-size:18px;display:flex;align-items:center;gap:8px}
+  .mline{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:5px 0;border-top:1px dashed var(--line)}
+  .mline .k{width:66px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3)}
+  .mline .v{flex:1}
+  .mline .s{color:var(--ink-2);font-size:12.5px}
+  .rline{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px dashed var(--line);font-size:14px}
+  .rline .ic{flex:0 0 30px;height:30px}
+  .rline small{display:block;color:var(--ink-2);font-size:12px}
+
+  /* ---------- info chips ---------- */
+  .chip[data-info]{cursor:help;border-bottom-style:dotted}
+  .chip[data-info]:hover{border-color:var(--sun);color:var(--ink)}
+  #infoTip{position:fixed;max-width:290px;z-index:20}
+  #infoTip .src{display:block;margin-top:6px;color:#cbbfa8;font-size:11px}
+
+  /* ---------- theme toggle & lanterns ---------- */
+  #themeToggle{position:fixed;right:16px;bottom:58px;z-index:10;font-size:13px;padding:6px 12px;background:#1d1a16;color:#f6efe0}
+  .lantern{position:absolute;top:-10px;right:86px;width:30px;height:58px;display:none;pointer-events:none}
+  .lantern.l2{right:auto;left:-14px;top:40px;transform:scale(.8)}
+  .moonrise{display:none}
+
+  :root[data-theme="night"]{
+    --paper:#211d19; --paper-2:#12100e; --ink:#efe6d4; --ink-2:#c9bfae; --ink-3:#9d9384; --line:#3a332c; --card:#2a2520;
+  }
+  :root{--card:#fffaf0}
+  [data-theme="night"] body{background:radial-gradient(ellipse at top,#1d1a2a 0%,#12100e 60%)}
+  [data-theme="night"] .sunrise{display:none}
+  [data-theme="night"] .moonrise{display:inline;animation:rise 2.6s cubic-bezier(.2,.7,.2,1) both}
+  [data-theme="night"] .hero h1 span{color:#f3d98b}
+  [data-theme="night"] .pod,[data-theme="night"] .award,[data-theme="night"] .clan,[data-theme="night"] .game{background:var(--card)}
+  [data-theme="night"] .pod.p1{background:linear-gradient(180deg,#3a2f1d,#2a2520);border-color:#7a6630}
+  [data-theme="night"] tbody tr:hover{background:#2e2823}
+  [data-theme="night"] .rank{background:#3a332c;color:var(--ink)}
+  [data-theme="night"] .rank.r2{background:#efe6d4;color:#1d1a16}
+  [data-theme="night"] .game .hd{background:#0d0b0a}
+  [data-theme="night"] .game .ft .chip{background:#1a1714}
+  [data-theme="night"] .pod .title{background:#efe6d4;color:#1d1a16}
+  [data-theme="night"] #petals{opacity:.75}
+  [data-theme="night"] #petalToggle{background:var(--card);color:var(--ink-2)}
+  [data-theme="night"] #themeToggle{background:#efe6d4;color:#1d1a16}
+  /* chart ink that was written as fixed hex */
+  [data-theme="night"] .chart svg [fill="#1d1a16"]:not(.cell){fill:#efe6d4}
+  [data-theme="night"] .chart svg [fill="#55504a"]{fill:#c9bfae}
+  [data-theme="night"] .chart svg [stroke="#1d1a16"]{stroke:#efe6d4}
+  [data-theme="night"] .chart svg [stroke="#ece2cc"]{stroke:#332d27}
+  [data-theme="night"] .chart svg [stroke="#d8ccb3"]{stroke:#4a4239}
+  [data-theme="night"] .chart svg [stroke="#b9ad97"]{stroke:#6a5f52}
+  [data-theme="night"] .chart svg [stroke="#fbf6ea"]{stroke:#211d19}
+  [data-theme="night"] .lantern{display:block}
+  .lantern .glow{animation:flicker 3.2s ease-in-out infinite}
+  .lantern.l2 .glow{animation-delay:-1.3s}
+  @keyframes flicker{0%,100%{opacity:.85}40%{opacity:1}55%{opacity:.7}70%{opacity:.95}}
+  @media (max-width:900px){.elowrap,.honorwrap{grid-template-columns:1fr}.race{height:auto;min-height:290px}}
+
+  /* ---------- record-a-battle form ---------- */
+  .recordbtn{display:inline-block;margin-top:22px;color:#f6efe0;text-decoration:none;font-size:14px;font-weight:600;border:1px solid rgba(251,246,234,.35);padding:7px 16px;border-radius:22px;animation:fadeUp .8s ease 2.9s both}
+  .recordbtn:hover{background:rgba(251,246,234,.12)}
+  #battleForm{max-width:860px}
+  .fh{font-size:18px;margin:20px 0 8px}
+  .fld{display:flex;flex-direction:column;gap:4px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600}
+  .fgrid{display:flex;gap:16px;flex-wrap:wrap}
+  #battleForm input,#battleForm select,#battleForm textarea{font:inherit;font-size:14.5px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+  #battleForm input:focus,#battleForm select:focus,#battleForm textarea:focus{outline:2px solid var(--sun);outline-offset:0;border-color:transparent}
+  #battleForm .bad{border-color:#b3261e;background:rgba(179,38,30,.06)}
+  .ptable{display:flex;flex-direction:column;gap:6px}
+  .phead,.prow{display:grid;grid-template-columns:28px 1fr 100px 160px 128px 36px;gap:8px;align-items:center}
+  .phead span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600}
+  .bstep{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:20px;background:var(--card);overflow:hidden;width:max-content}
+  .bstep button{font:inherit;border:0;background:none;cursor:pointer;color:var(--ink-2);padding:7px 10px}
+  .bstep .bm{padding:7px 9px;border-right:1px solid var(--line)}
+  .bstep .bt{font-weight:700;min-width:62px;text-align:left}
+  .bstep .bt.on{color:#fff;background:#6b1d1d}
+  .bstep .bt.pop{animation:pop .25s ease}
+  @keyframes pop{50%{transform:scale(1.15)}}
+  .prow .pn{font-weight:700;color:var(--ink-3);text-align:center}
+  .prow .pn.lead{color:#fff;background:var(--sun);border-radius:6px;padding:4px 0}
+  .prow .rm{border:0;background:none;color:var(--ink-3);font-size:18px;cursor:pointer;border-radius:6px;padding:4px}
+  .prow .rm:hover{color:#b3261e;background:rgba(179,38,30,.08)}
+  .kgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .checks{display:flex;flex-wrap:wrap;gap:8px}
+  .checks label{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);border-radius:20px;padding:5px 12px;font-size:13.5px;cursor:pointer;user-select:none}
+  .checks input{width:auto!important;accent-color:var(--sun);margin:0}
+  .checks label:has(input:checked){border-color:var(--sun);background:rgba(200,16,46,.08)}
+  .more{margin-top:10px;font-size:14px;color:var(--ink-2)}
+  .more summary{cursor:pointer;margin-bottom:8px}
+  button.primary{font:inherit;font-weight:700;font-size:15px;background:var(--sun);color:#fff;border:0;border-radius:22px;padding:10px 22px;cursor:pointer}
+  button.ghost{font:inherit;font-size:13.5px;background:transparent;color:var(--ink-2);border:1px solid var(--line);border-radius:20px;padding:6px 14px;cursor:pointer;margin-top:8px}
+  button.ghost:hover{border-color:var(--ink-3);color:var(--ink)}
+  .factions{display:flex;gap:10px;align-items:center;margin-top:12px}
+  .factions button.ghost{margin-top:0}
+  .fmsg{min-height:0;font-size:14px;margin-top:12px}
+  .fmsg.err{color:#b3261e}
+  .fmsg.ok{color:#1a7a3a}
+  .fmsg ul{margin:4px 0 0;padding-left:20px}
+  .savedtag{display:inline-block;font-size:11px;background:#eda100;color:#1d1a16;border-radius:10px;padding:1px 8px;margin-left:6px;font-weight:700}
+  .game:target{outline:3px solid var(--sun);outline-offset:3px}
+
+  /* ---------- battle photos ---------- */
+  .game .ph{display:block;width:100%;border:0;padding:0;margin:0 0 8px;background:none;cursor:zoom-in;border-radius:8px;overflow:hidden}
+  .game .ph img{display:block;width:100%;height:150px;object-fit:cover;transition:transform .3s}
+  .game .ph:hover img{transform:scale(1.03)}
+  .lightbox{position:fixed;inset:0;z-index:50;background:rgba(10,8,6,.88);display:flex;align-items:center;justify-content:center;padding:24px}
+  .lightbox[hidden]{display:none}
+  .lightbox img{max-width:100%;max-height:100%;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+  .lightbox .lbx{position:absolute;top:14px;right:16px;font-size:22px;color:#fff;background:rgba(255,255,255,.12);border:0;border-radius:50%;width:42px;height:42px;cursor:pointer}
+  .photoin{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .phprev{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-3)}
+  .phprev img{height:56px;border-radius:6px;border:1px solid var(--line)}
+  .phprev .x{border:0;background:none;cursor:pointer;color:var(--ink-3);font-size:15px}
+  table.ledger .lph{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;font-size:12px}
+  table.ledger .lph img{height:34px;border-radius:4px;border:1px solid var(--line)}
+  table.ledger .filelink{cursor:pointer;font-size:12px}
+
+  /* ---------- starting order & trust ---------- */
+  .order{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .order .step{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:74px;padding:10px 6px 8px;border:1px solid var(--line);border-radius:12px;background:var(--card);position:relative}
+  .order .step b{font-size:12px;color:var(--ink-2)}
+  .order .step .no{position:absolute;top:-9px;left:-6px;width:24px;height:24px;border-radius:50%;background:var(--sun);color:#fff;font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center}
+  .order .arrow{color:var(--ink-3);font-size:16px}
+  .dsum{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin:0 0 12px}
+  .dstat{display:flex;align-items:baseline;gap:10px;color:var(--ink-2);font-size:14px}
+  .dstat .big{font-size:40px;font-weight:700;color:#6b1d1d;line-height:1}
+  [data-theme="night"] .dstat .big{color:#e66767}
+  .dclean{font-size:14px;color:var(--ink-2)}
+  .dclean b{color:var(--ink)}
+  .dclean .s{color:var(--ink-3);font-size:12px}
+  .empty{border:1px dashed var(--line);border-radius:12px;padding:18px;text-align:center;color:var(--ink-2);background:var(--card)}
+  .tile{position:relative;min-width:120px;padding:12px 16px}
+  .tile .who{font-size:13px;color:#f6efe0;margin-top:2px}
+  .tiles{gap:12px}
+  .tile.high .n{color:#f3d98b}
+  .tile.low .n{color:#e8a1a1}
+  .tile .tk{position:absolute;top:-10px;right:-8px;width:26px;height:26px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:"Yu Mincho","Noto Serif JP",serif;font-weight:700;font-size:14px;color:#fff;transform:rotate(8deg);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+  .tile.high .tk{background:#b8892b}
+  .tile.low .tk{background:#6b1d1d}
+
+  /* ---------- screens, tab bar, pending banner ---------- */
+  .tabs{position:sticky;top:0;z-index:15;display:flex;align-items:center;gap:4px;padding:0 18px;background:#141210;border-bottom:3px solid var(--sun);box-shadow:0 2px 10px rgba(0,0,0,.25);overflow-x:auto}
+  .tabs a{color:#d9cfbc;text-decoration:none;white-space:nowrap}
+  .tabs .brand{font-weight:700;font-size:17px;color:#f6efe0;margin-right:14px;padding:12px 0}
+  .tabs .tab{font-size:14px;font-weight:600;padding:13px 14px 11px;border-bottom:3px solid transparent;margin-bottom:-3px}
+  .tabs .tab:hover{color:#fff}
+  .tabs .tab.on{color:#fff;border-bottom-color:#f3d98b}
+  .screen[hidden],header.hero[hidden]{display:none}
+  .pending{position:relative;z-index:2;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;max-width:1150px;margin:14px auto 0;padding:10px 16px;border-radius:12px;background:#fff3cf;border:1px solid #e6c766;color:#3b2f10;font-size:14px}
+  .pending[hidden]{display:none}
+  .pending .pb{display:flex;gap:8px;align-items:center}
+  .pending .pb button{margin-top:0}
+  button.primary.sm{font-size:13.5px;padding:7px 14px}
+  button.primary:disabled{opacity:.45;cursor:default}
+  button.ghost:disabled{opacity:.45;cursor:default}
+  [data-theme="night"] .pending{background:#3a3120;border-color:#7a6630;color:#f3e7c4}
+  [data-theme="night"] .tabs{background:#0d0b0a}
+
+  /* ---------- ledger ---------- */
+  .ltools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .ltools .grow{flex:1}
+  .ltools button{margin-top:0}
+  #ledgerFilter{font:inherit;font-size:14px;padding:7px 12px;border:1px solid var(--line);border-radius:20px;background:var(--card);color:var(--ink);min-width:260px}
+  .lcount{font-size:13px;color:var(--ink-3)}
+  .filebtn{display:inline-block;cursor:pointer;border:1px solid var(--line);border-radius:20px;padding:6px 14px;font-size:13.5px;color:var(--ink-2)}
+  table.ledger{font-size:13.5px}
+  table.ledger th{cursor:default;position:sticky;top:0;background:var(--paper);z-index:1}
+  table.ledger td{padding:3px 4px;vertical-align:top;white-space:normal}
+  table.ledger tbody.lb td{border-bottom:1px solid var(--line)}
+  table.ledger tbody.lb tr:last-child td{border-bottom:2px solid var(--ink-3)}
+  table.ledger tbody.alt{background:rgba(0,0,0,.025)}
+  table.ledger tbody tr:hover{background:transparent}
+  table.ledger td.bn{padding-top:9px;font-size:15px}
+  table.ledger td.pl{padding-top:9px;color:var(--ink-3);font-weight:700;text-align:center}
+  table.ledger .partial{display:block;font-size:10.5px;color:var(--ink-3);border:1px solid var(--line);border-radius:8px;padding:0 5px;margin-top:4px;width:max-content}
+  table.ledger .c{font:inherit;font-size:13.5px;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:6px;padding:5px 6px;width:100%;min-width:0;resize:vertical}
+  table.ledger .c:hover{border-color:var(--line);background:var(--card)}
+  table.ledger .c:focus{outline:2px solid var(--sun);background:var(--card)}
+  table.ledger input.c{min-width:110px}
+  table.ledger input.date{min-width:78px;width:84px}
+  table.ledger input.num{width:58px;min-width:58px;text-align:right}
+  table.ledger select.c{min-width:100px}
+  table.ledger textarea.c{min-width:150px}
+  table.ledger textarea.note{min-width:190px}
+  table.ledger td.act{white-space:nowrap;padding-top:6px}
+  table.ledger .x{border:0;background:none;color:var(--ink-3);cursor:pointer;font-size:14px;padding:3px 5px;border-radius:5px}
+  table.ledger .x:hover{background:rgba(0,0,0,.06);color:var(--ink)}
+  table.ledger .x.danger:hover{background:rgba(179,38,30,.1)}
+
+  /* ---------- phones & small tablets ---------- */
+  .awards{grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr))}
+  .clans{grid-template-columns:repeat(auto-fill,minmax(min(200px,100%),1fr))}
+  .games{grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr))}
+  .match,.rivals{grid-template-columns:repeat(auto-fill,minmax(min(255px,100%),1fr))}
+  .swipehint{display:none}
+  @media (max-width:700px){
+    .swipehint{display:block;font-size:12.5px;color:var(--ink-3);margin:0 0 6px}
+    main{padding:14px 10px 70px}
+    section{padding:18px 14px 16px;margin:16px 0;border-radius:12px}
+    h2{font-size:23px;padding-right:48px}
+    .lede{font-size:14.5px}
+    header.hero{padding:34px 14px 40px}
+    .hero .kanji{font-size:17px}
+    .hero p.tag{letter-spacing:.22em;font-size:11px}
+    .tiles{gap:8px;margin-top:22px}
+    .tile{flex:1 1 calc(50% - 8px);min-width:0;padding:10px 8px}
+    .tile .n{font-size:26px}
+    .tile .l{font-size:10.5px;letter-spacing:.08em}
+    .tabs{padding:0 6px;gap:0}
+    .tabs .brand{display:none}
+    .tabs .tab{flex:1;text-align:center;font-size:13px;padding:12px 6px 10px}
+    .pending{margin:10px 10px 0;font-size:13px}
+    .podium{grid-template-columns:1fr;gap:10px}
+    .pod.p1{order:-1}
+    .pod .hanko{width:36px;height:36px;font-size:20px}
+    /* wide charts scroll sideways instead of shrinking their text */
+    #eloChart,#honorTrack,#h2h{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    #eloChart svg{min-width:680px}
+    #honorTrack svg{min-width:560px}
+    #h2h svg{min-width:520px;max-width:none!important}
+    .race{height:auto!important;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    .race .rrow{position:static!important}
+    .replay{gap:8px}
+    #replayLabel{min-width:0}
+    th,td{padding:7px 6px}
+    /* record form: each warlord becomes a small card */
+    .phead{display:none}
+    .prow{grid-template-columns:30px 1fr 1fr;grid-template-areas:"pn name name" ". score clan" ". bt rm";row-gap:6px;padding:8px 0;border-bottom:1px dashed var(--line)}
+    .prow .pn{grid-area:pn}
+    .prow [name=pname]{grid-area:name}
+    .prow [name=pscore]{grid-area:score}
+    .prow [name=pclan]{grid-area:clan}
+    .prow .bstep{grid-area:bt}
+    .prow .rm{grid-area:rm;justify-self:end}
+    .kgrid{grid-template-columns:1fr 1fr}
+    #battleForm input,#battleForm select,#battleForm textarea{font-size:16px}   /* 16px stops iPhone zooming in on tap */
+    .factions{position:sticky;bottom:0;background:var(--paper);padding:10px 0;margin:12px -14px 0;padding-left:14px;border-top:1px solid var(--line);z-index:3}
+    .ltools{gap:6px}
+    #ledgerFilter{min-width:0;flex:1 1 100%}
+    .ltools .grow{display:none}
+    #themeToggle,#petalToggle{font-size:12px;padding:5px 10px;right:10px}
+    #themeToggle{bottom:50px}
+    #petalToggle{bottom:12px}
+    .honorwrap,.elowrap{gap:12px}
+    .order .step{min-width:60px;padding:8px 4px 6px}
+    .order .arrow{display:none}
+    .game .ph img{height:130px}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none!important;transition:none!important}
+    .hero .brushline,h2 .brush{clip-path:none!important}
+    section{opacity:1;transform:none}
+  }
+
+  main{max-width:1150px;margin:0 auto;padding:28px 18px 60px}
+  section{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:26px 26px 22px;margin:26px 0;position:relative;box-shadow:0 2px 0 rgba(0,0,0,.03)}
+  h2{margin:0 0 14px;font-size:28px;position:relative;display:inline-block;padding-right:58px}
+  /* section kanji become a red hanko seal */
+  h2 small{position:absolute;right:0;top:-4px;font-size:13px;line-height:1.05;color:#fff;background:var(--sun);font-weight:700;letter-spacing:0;
+    writing-mode:vertical-rl;padding:5px 4px;border-radius:4px;transform:rotate(6deg);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35);filter:url(#stamp)}
+  /* brush stroke underline, painted on scroll */
+  h2 .brush{position:absolute;left:-6px;bottom:-14px;width:calc(100% - 46px);min-width:160px;height:18px;overflow:visible;pointer-events:none}
+  h2 .brush path{fill:var(--sun);opacity:.9}
+  h2 .brush{clip-path:inset(0 100% 0 0);transition:clip-path 1.1s cubic-bezier(.6,.05,.3,1) .15s}
+  section.inview h2 .brush{clip-path:inset(0 0 0 0)}
+  section{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease}
+  section.inview{opacity:1;transform:none}
+  .lede{color:var(--ink-2);margin:0 0 18px;max-width:820px}
+
+  /* ---------- podium ---------- */
+  .podium{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:16px;align-items:end;margin:10px 0 6px}
+  .pod{text-align:center;border-radius:12px;padding:18px 10px 16px;border:1px solid var(--line);background:#fffaf0}
+  .pod.p1{background:linear-gradient(180deg,#fff3d6,#fffaf0);border-color:#e6cf8f;padding-top:26px}
+  .pod .place{font-size:13px;letter-spacing:.2em;color:var(--ink-3);text-transform:uppercase}
+  .pod .name{font-size:26px;font-weight:700;margin:6px 0 2px}
+  .pod .elo{font-size:15px;color:var(--ink-2)}
+  .pod .title{display:inline-block;margin-top:8px;font-size:13px;padding:3px 10px;border-radius:20px;background:#1d1a16;color:#f6efe0}
+  .pod svg{width:72px;height:72px;display:block;margin:0 auto}
+
+  /* ---------- table ---------- */
+  .tablewrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:14.5px}
+  th,td{padding:8px 7px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600;cursor:pointer;user-select:none}
+  th:hover{color:var(--ink)}
+  th.l,td.l{text-align:left}
+  tbody tr:hover{background:#f6edd9}
+  td.name{font-weight:600}
+  .rank{display:inline-flex;width:26px;height:26px;border-radius:50%;align-items:center;justify-content:center;font-size:13px;font-weight:700;background:#ece2cc;color:var(--ink)}
+  .rank.r1{background:var(--sun);color:#fff}.rank.r2{background:#1d1a16;color:#fff}.rank.r3{background:var(--gold);color:#fff}
+  .bar{display:inline-block;height:8px;border-radius:0 4px 4px 0;background:var(--sun);vertical-align:middle;margin-left:8px}
+  .mon{width:22px;height:22px;vertical-align:middle;margin-right:6px}
+  .up{color:#1a7a3a}.down{color:#b3261e}
+
+  /* ---------- awards ---------- */
+  .awards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+  .award{border:1px solid var(--line);border-radius:12px;padding:16px;background:#fffaf0;display:flex;gap:14px;align-items:flex-start}
+  .award .ico{flex:0 0 52px;height:52px}
+  .award h3{margin:0;font-size:17px}
+  .award .who{font-size:21px;font-weight:700;margin:2px 0}
+  .award p{margin:0;color:var(--ink-2);font-size:13.5px}
+
+  /* ---------- charts ---------- */
+  .chart{position:relative}
+  .chart svg{width:100%;height:auto;display:block;overflow:visible}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 0 10px;font-size:13px;color:var(--ink-2)}
+  .legend span{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+  .legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+  .legend span.off{opacity:.35}
+  .tip{position:absolute;pointer-events:none;background:#1d1a16;color:#f6efe0;font-size:12.5px;padding:8px 10px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.25);opacity:0;transition:opacity .1s;min-width:150px;z-index:5}
+  .tip b{color:#fff}
+  .tip .row{display:flex;justify-content:space-between;gap:12px}
+  .tip .sw{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+
+  /* ---------- clans ---------- */
+  .clans{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+  .clan{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fffaf0;display:flex;gap:12px;align-items:center}
+  .clan svg.big{width:56px;height:56px;flex:0 0 56px}
+  .clan h4{margin:0;font-size:16px}
+  .clan .st{font-size:12.5px;color:var(--ink-2)}
+
+  /* ---------- game log ---------- */
+  .games{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+  .game{border:1px solid var(--line);border-radius:12px;background:#fffaf0;overflow:hidden}
+  .game .hd{background:#1d1a16;color:#f6efe0;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
+  .game .hd b{font-size:16px}
+  .game .hd span{font-size:12px;color:#cbbfa8}
+  .game ol{list-style:none;margin:0;padding:8px 14px}
+  .game li{display:flex;align-items:center;padding:4px 0;border-bottom:1px dashed var(--line);font-size:14px}
+  .game li:last-child{border-bottom:0}
+  .game li .pl{width:22px;color:var(--ink-3);font-weight:700}
+  .game li .nm{flex:1}
+  .game li .sc{font-weight:700;width:40px;text-align:right}
+  .game li .de{width:52px;text-align:right;font-size:12px}
+  .game .ft{padding:8px 14px 12px;font-size:12.5px;color:var(--ink-2)}
+  .game .ft .chip{display:inline-block;background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:1px 8px;margin:2px 3px 2px 0}
+  .game .note{font-style:italic;color:var(--sun)}
+
+  .notes li{margin:6px 0;color:var(--ink-2)}
+  footer{text-align:center;color:var(--ink-3);font-size:12.5px;padding:20px}
+  @media (max-width:760px){.grid2{grid-template-columns:1fr}.podium{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<!-- shared ink / brush filters -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- rough, wobbly ink edge for lines and bars -->
+    <filter id="brush" x="-5%" y="-30%" width="110%" height="160%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035 0.09" numOctaves="3" seed="4" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="3.2" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <!-- lighter edge for large type -->
+    <filter id="inkEdge" x="-5%" y="-20%" width="110%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="9" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="2.5" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <!-- worn stamp texture for hanko seals -->
+    <filter id="stamp" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="g"/>
+      <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.6 1.75" result="m"/>
+      <feComposite in="SourceGraphic" in2="m" operator="in"/>
+    </filter>
+  </defs>
+</svg>
+<canvas id="petals" aria-hidden="true"></canvas>
+<button id="petalToggle" type="button">🌹 Petals: on</button>
+<button id="themeToggle" type="button">🌙 Night</button>
+<div class="tip" id="infoTip" role="tooltip"></div>
+
+<header class="hero">
+  <svg class="bg" viewBox="0 0 1200 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <radialGradient id="sunG" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="#ff5a3c"/><stop offset=".7" stop-color="#c8102e"/><stop offset="1" stop-color="#8e0b20"/>
+      </radialGradient>
+      <linearGradient id="mtn" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2b2622"/><stop offset="1" stop-color="#141210"/></linearGradient>
+    </defs>
+    <!-- sun + rays (rise from behind the mountains) -->
+    <g class="sunrise">
+      <g transform="translate(600,330)" opacity=".16">
+        <g id="rays"></g>
+      </g>
+      <circle cx="600" cy="330" r="190" fill="#ff5a3c" opacity=".12"/>
+      <circle cx="600" cy="330" r="170" fill="url(#sunG)"/>
+    </g>
+    <!-- night: crescent moon + stars -->
+    <g class="moonrise" aria-hidden="true">
+      <defs>
+        <radialGradient id="moonG" cx="40%" cy="40%" r="60%"><stop offset="0" stop-color="#fbf6e6"/><stop offset="1" stop-color="#cfc4a8"/></radialGradient>
+        <mask id="crescent"><rect x="380" y="100" width="440" height="440" fill="#fff"/><circle cx="680" cy="300" r="128" fill="#000"/></mask>
+      </defs>
+      <circle cx="600" cy="330" r="200" fill="#f6efd8" opacity=".06"/>
+      <circle cx="600" cy="330" r="160" fill="url(#moonG)" mask="url(#crescent)"/>
+      <g fill="#f6efd8" id="stars"></g>
+    </g>
+    <!-- mountains -->
+    <path d="M0 420 L0 330 L140 250 L230 300 L360 200 L470 290 L560 260 L640 320 L760 230 L880 300 L1000 220 L1200 330 L1200 420Z" fill="url(#mtn)"/>
+    <path d="M330 222 L360 200 L392 224 L372 220 L360 230 L346 220Z M730 252 L760 230 L792 255 L772 250 L760 260 L746 250Z" fill="#e9dfcf" opacity=".85"/>
+    <!-- torii -->
+    <g transform="translate(140,245)" fill="#c8102e">
+      <rect x="-10" y="20" width="9" height="120"/><rect x="70" y="20" width="9" height="120"/>
+      <path d="M-32 6 Q35 -8 102 6 L100 18 Q35 6 -30 18Z"/><rect x="-18" y="30" width="105" height="7"/><rect x="30" y="18" width="8" height="14"/>
+    </g>
+    <!-- pagoda -->
+    <g transform="translate(1030,170)" fill="#0d0b0a">
+      <rect x="-6" y="0" width="12" height="20"/>
+      <path d="M-40 20 L40 20 L28 34 L-28 34Z"/><rect x="-20" y="34" width="40" height="18"/>
+      <path d="M-52 52 L52 52 L38 68 L-38 68Z"/><rect x="-26" y="68" width="52" height="22"/>
+      <path d="M-64 90 L64 90 L48 108 L-48 108Z"/><rect x="-32" y="108" width="64" height="140"/>
+    </g>
+    <!-- cranes -->
+    <g stroke="#e9dfcf" stroke-width="2.4" fill="none" opacity=".6" stroke-linecap="round">
+      <path class="crane" d="M820 90 q14 -12 28 0 q14 -12 28 0"/><path class="crane" d="M880 125 q10 -9 20 0 q10 -9 20 0"/><path class="crane" d="M300 110 q12 -10 24 0 q12 -10 24 0"/>
+    </g>
+  </svg>
+  <div class="inner">
+    <div class="kanji serif">昇る太陽</div>
+    <h1 class="serif">RISING <span>SUN</span></h1>
+    <svg class="brushline" viewBox="0 0 300 24" preserveAspectRatio="none" aria-hidden="true"><path class="brushpath" fill="#e8473b" filter="url(#inkEdge)"/></svg>
+    <p class="sub serif"><span class="rule" aria-hidden="true"></span>The Scroll of Honor<span class="rule" aria-hidden="true"></span></p>
+    <p class="tag">Who rules feudal Japan at our table</p>
+    <div class="tiles" id="tiles"></div>
+    <a class="recordbtn" href="#record">＋ Record a battle</a>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Screens">
+  <a class="brand serif" href="#stats">昇 Rising Sun</a>
+  <a class="tab" data-tab="stats" href="#stats">📜 Stats</a>
+  <a class="tab" data-tab="record" href="#record">⚔ Record a Battle</a>
+  <a class="tab" data-tab="ledger" href="#ledger">📒 Ledger</a>
+</nav>
+<div class="pending" id="pendingBar" hidden></div>
+<main>
+
+<div class="screen" data-screen="stats">
+  <section>
+    <h2 class="serif">The Shogunate <small>将軍</small></h2>
+    <p class="lede">Ranked by <b>Elo rating</b>, the same system used for chess. Everyone starts at 1500. After each game, every player is compared with every other player at the table. Beating someone rated higher earns more points than beating someone rated lower. Rising Sun is a long game, so it takes <b>2 battles</b> to earn a rank. Warlords with only 1 battle are <b>Ronin</b> (unranked).</p>
+    <div class="podium" id="podium"></div>
+  </section>
+
+  <section>
+    <h2 class="serif">Leaderboard <small>番付</small></h2>
+    <p class="lede">Click any column header to sort. <b>Avg Finish</b> converts finishing place to a 0–100 scale (100 = always 1st, 0 = always last), so 4- and 6-player games can be compared. <b>Score vs Table</b> is a player's average score as a percentage of their table's average score (100% = average).</p>
+    <div class="tablewrap"><table id="board"></table></div>
+  </section>
+
+  <section>
+    <h2 class="serif">The Rise and Fall <small>栄枯盛衰</small></h2>
+    <p class="lede">Elo rating after each battle for the 8 warlords with the most battles. Hover over the chart to see ratings at any game. Click a name in the legend to hide or show that line.</p>
+    <div class="replay">
+      <button type="button" id="replayBtn">▶ Replay the war</button>
+      <input type="range" id="replaySlider" min="0" max="11" value="11" aria-label="Show ratings after battle">
+      <span id="replayLabel">After all battles</span>
+    </div>
+    <div class="news" id="replayNews" aria-live="polite"></div>
+    <div class="legend" id="eloLegend"></div>
+    <div class="elowrap">
+      <div class="chart" id="eloChart"></div>
+      <div class="race" id="race" aria-label="Standings at this point"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="serif">The Honor Track <small>格付</small></h2>
+    <p class="lede">Each regular's marker sits on the track at their current Elo, and the colored bands show which rank title that rating earns. Warlords with only 1 battle are <b>Ronin</b> (masterless) until they fight a second battle and earn a rank.</p>
+    <div class="honorwrap">
+      <div class="chart" id="honorTrack"></div>
+      <div class="tiers" id="tierLegend"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="serif">Honors & Dishonors <small>名誉</small></h2>
+    <p class="lede">Awards earned (or suffered) at the table.</p>
+    <div class="awards" id="awards"></div>
+  </section>
+
+  <section>
+    <h2 class="serif">Average Victory Points <small>勝利点</small></h2>
+    <p class="lede">The thin line on each bar shows the player's range from worst to best score. A high average with a narrow range means a consistent player.</p>
+    <div class="chart" id="avgChart"></div>
+  </section>
+
+  <section>
+    <h2 class="serif">The Great Clans <small>氏族</small></h2>
+    <p class="lede">How each clan has performed, no matter who played it.</p>
+    <div class="clans" id="clans"></div>
+    <div class="chart" id="clanChart" style="margin-top:18px"></div>
+    <h3 class="serif fh">Average finishing place</h3>
+    <p class="lede" style="margin-bottom:6px">Where each clan usually finishes (1st = won). <b>Shorter bars are better.</b> Only battles with every score recorded count.</p>
+    <div class="chart" id="clanPlaceChart"></div>
+  </section>
+
+  <section>
+    <h2 class="serif">Starting Order <small>手番</small></h2>
+    <p class="lede">Your clan decides when you take your turn: Koi always goes first, then Sun, Lotus, Turtle, Dragonfly, Fox, Bonsai and Moon. Each warlord's <b>seat</b> is their place in that order among the clans at the table, so Turtle can be the 1st seat when no Koi, Sun or Lotus is playing. Seats are only counted when every clan at the table was recorded.</p>
+    <div class="order" id="startOrder"></div>
+    <div class="chart" id="seatChart" style="margin-top:14px"></div>
+  </section>
+
+  <section>
+    <h2 class="serif">Distrust Meter <small>裏切</small></h2>
+    <p class="lede">Who has played the <b>Betrayal tile</b>, and how often. Our table mostly keeps its word, so every betrayal is remembered. Tap the 🗡 counter on the Record a Battle screen each time someone betrays. Older battles weren't tracked, so they don't count.</p>
+    <div class="dsum" id="trustSummary"></div>
+    <div class="chart" id="trustChart"></div>
+  </section>
+
+  <section>
+    <h2 class="serif">Clan Matchmaker <small>相性</small></h2>
+    <p class="lede">The clan each regular does best and worst with, ranked by win rate first, then average finishing place, then score as a percentage of the table average. <b>Try next</b> suggests the strongest clan they haven't played yet. With only a few plays per clan, take it as advice, not a guarantee.</p>
+    <div class="match" id="matchmaker"></div>
+  </section>
+
+  <section>
+    <h2 class="serif">Head to Head <small>一騎打ち</small></h2>
+    <p class="lede">How often the row player finished above the column player when both played the same game (regulars only). Hover over a cell for the record.</p>
+    <div class="chart" id="h2h"></div>
+  </section>
+
+  <section>
+    <h2 class="serif">Nemesis & Prey <small>宿敵</small></h2>
+    <p class="lede">For each regular, their <b>nemesis</b> is the opponent who most often finishes above them, and their <b>prey</b> is the opponent they most often finish above. Only opponents they've faced at least twice count.</p>
+    <div class="rivals" id="rivals"></div>
+  </section>
+
+  <section>
+    <h2 class="serif">Chronicle of Battles <small>戦記</small></h2>
+    <p class="lede">Every recorded game. The small numbers on the right show each player's Elo change from that game.</p>
+    <div class="games" id="games"></div>
+  </section>
+
+  <section>
+    <h2 class="serif">Scribe's Notes <small>注</small></h2>
+    <ul class="notes">
+      <li><b>Two Ryans:</b> <b>Ryan Wallace</b> and <b>Ryan Hicks</b> are tracked separately. The Ryan recorded without a last name in games 1, 3, 4 and 10 is assumed to be Ryan Wallace.</li>
+      <li><b>Game 1:</b> Only Andreina's score (79) was recorded. The game counts as Andreina beating each of the other four players, but they don't get an order among themselves.</li>
+      <li><b>Game 2:</b> Only the winner (Andreina, 58, Sun Clan) was recorded. It counts toward her wins and games played but not toward Elo, because the other players are unknown.</li>
+      <li><b>Missing clans:</b> in game 7 only Tom's clan (Turtle) was recorded, and game 2 only recorded the winner's clan, so those games count less toward the clan stats and starting order.</li>
+      <li><b>Ties</b> (game 4: Duffy/Chandler 71; game 8: Stephen/Chandler 52 and Adam/Thane 12) count as draws.</li>
+      <li>Games are assumed to be in the order they were numbered. Only three dates were recorded (12/31/24 for game 8, 5/25/26 for game 10 and 11/22/26 for game 11).</li>
+      <li>With this few games, these rankings are for bragging rights, not proof.</li>
+    </ul>
+  </section>
+</div>
+
+<div class="screen" data-screen="record" hidden>
+  <section id="recordSec">
+    <h2 class="serif">Record a Battle <small>記録</small></h2>
+    <p class="lede">Enter a new game and every chart, rating and award updates right away. New battles are saved <b>in this browser</b>. To share them, or keep them safe, press <b>Download updated page</b> and replace the old <code>index.html</code> with the downloaded file.</p>
+    <form id="battleForm" novalidate>
+      <div class="fgrid">
+        <label class="fld">Date<input type="date" name="date" required></label>
+      </div>
+
+      <h3 class="serif fh">Warlords</h3>
+      <div class="ptable">
+        <div class="phead"><span>#</span><span>Name</span><span>Points</span><span>Clan</span><span title="Times this warlord played the Betrayal tile">Betrayals 🗡</span><span></span></div>
+        <div id="pRows"></div>
+      </div>
+      <button type="button" class="ghost" id="addRow">＋ Add warlord</button>
+
+      <h3 class="serif fh">The 4 Kami</h3>
+      <div class="kgrid" id="kamiInputs"></div>
+
+      <h3 class="serif fh">Monster packs</h3>
+      <div class="checks" id="monsterChecks"></div>
+      <details class="more"><summary>Other card sets &amp; expansions (optional)</summary>
+        <div class="checks" id="cardChecks"></div>
+        <label class="fld" style="margin-top:8px">Anything else (comma separated)<input type="text" name="otherCards" placeholder="e.g. Kami Unbound"></label>
+      </details>
+
+      <h3 class="serif fh">Battle photo <span style="font:400 13px Segoe UI,system-ui,sans-serif;color:var(--ink-3)">(optional)</span></h3>
+      <div class="photoin"><label class="ghost filebtn">📷 Add a photo of the board<input type="file" name="photo" accept="image/*" hidden></label><span class="phprev" id="photoPrev"></span></div>
+
+      <h3 class="serif fh">Notes</h3>
+      <textarea name="note" rows="3" placeholder="e.g. Stephen kingmakes Tom · Bryan gave up in Autumn"></textarea>
+
+      <div class="fmsg" id="formMsg" role="alert"></div>
+      <div class="factions">
+        <button type="submit" class="primary">勝 Record battle</button>
+        <button type="reset" class="ghost">Clear</button>
+      </div>
+    </form>
+
+  </section>
+</div>
+
+<div class="screen" data-screen="ledger" hidden>
+  <section id="ledgerSec">
+    <h2 class="serif">The Ledger <small>帳簿</small></h2>
+    <p class="lede">Every battle as raw data. Click any cell to edit it, then press <b>Save changes</b>. Empty points mean the score wasn't recorded. Changes are kept in this browser until you download the updated page.</p>
+    <div class="ltools">
+      <input type="search" id="ledgerFilter" placeholder="Filter by player, clan, Kami, note…" aria-label="Filter ledger">
+      <span class="lcount" id="ledgerCount"></span>
+      <span class="grow"></span>
+      <button type="button" class="ghost" id="ledgerCsv">⬇ Export CSV</button>
+      <button type="button" class="ghost" id="ledgerDiscard" disabled>Discard edits</button>
+      <button type="button" class="primary" id="ledgerSave" disabled>Save changes</button>
+    </div>
+    <div class="fmsg" id="ledgerMsg" role="alert"></div>
+    <p class="swipehint">↔ Swipe sideways to see every column. The Ledger is easiest on a computer.</p>
+    <div class="tablewrap"><table class="ledger" id="ledgerTable"></table></div>
+  </section>
+</div>
+</main>
+<footer class="serif">Hand-scrolled for the table · Fan-made stats page, not affiliated with the publisher of Rising Sun</footer>
+
+<script type="application/json" id="battle-data">
+[
+  {"n":1,"players":5,"partial":"winnerOnly","note":"Only the winner's score was recorded","results":[["Andreina",79,"Fox"],["Bryan",null,"Bonsai"],["Ryan Wallace",null,"Koi"],["Stephen",null,"Turtle"],["Chandler",null,"Lotus"]],"kami":[],"cards":["Seven Gods pack"]},
+  {"n":2,"players":5,"partial":"unknownField","note":"Only the winner was recorded","results":[["Andreina",58,"Sun"]],"kami":[],"cards":[]},
+  {"n":3,"results":[["Chandler",80,"Sun"],["Ryan Wallace",77,"Turtle"],["Bryan",62,"Koi"],["Stephen",57,"Bonsai"],["Eric",48,"Lotus"]],"kami":["Susanoo","Ryujin","Fujin","Raijin"],"cards":["Standard","Foreign Gods","Kami (mountain)"]},
+  {"n":4,"results":[["Ryan Wallace",82,"Moon"],["Duffy",71,"Bonsai"],["Chandler",71,"Koi"],["Tyler",62,"Sun"]],"kami":["Ryujin","Tsukuyomi","Raijin","Fujin"],"cards":["Standard","Foreign Gods","Teapot"]},
+  {"n":5,"results":[["Stephen",63,"Koi"],["Chandler",56,"Turtle"],["Treynor",53,"Fox"],["Harout",36,"Dragonfly"],["Adam",27,"Lotus"]],"kami":["Tsukuyomi","Raijin","Fujin","Amaterasu"],"cards":["Standard","Stamped"]},
+  {"n":6,"results":[["Thane",56,"Sun"],["Chandler",55,"Lotus"],["Adam",46,"Fox"],["Eric",40,"Turtle"],["Tom",33,"Moon"]],"kami":["Amaterasu","Raijin","Hachiman","Susanoo"],"cards":["Standard","Foreign Gods","Monster pack"]},
+  {"n":7,"note":"No one contested Tom","results":[["Tom",105,"Turtle"],["Eric",75,null],["Chandler",69,null],["Bryan",48,null]],"kami":["Raijin","Amaterasu","Tsukuyomi","Fujin"],"cards":["Basic","Lucky Monsters","Gate"]},
+  {"n":8,"date":"12/31/24","note":"Stephen let Tom win · Bryan gave up · Thane big chilling 😎","results":[["Tom",72,"Koi"],["Stephen",52,"Sun"],["Chandler",52,"Turtle"],["Bryan",26,"Moon"],["Adam",12,"Lotus"],["Thane",12,"Dragonfly"]],"kami":[],"cards":["Teapot","Monster","Arrow"]},
+  {"n":9,"results":[["Thane",61,"Sun"],["Tom",55,"Moon"],["Eric",45,"Turtle"],["Adam",31,"Dragonfly"],["Stephen",26,"Koi"],["Chandler",8,"Lotus"]],"kami":[],"cards":["Base","Horse","S&M Monsters"]},
+  {"n":10,"date":"5/25/26","results":[["Tyler",86,"Turtle"],["Ryan Wallace",75,"Fox"],["Chandler",56,"Bonsai"],["Jd",54,"Dragonfly"],["Ryan Hicks",36,"Koi"]],"kami":[],"cards":["Base","Teapot"]},
+  {"n":11,"date":"11/22/26","results":[["Tom",75,"Turtle",0],["Chandler",48,"Fox",0],["Sam",46,"Koi",0],["Eric",32,"Bonsai",1],["Krisanne",28,"Dragonfly",0],["Stephen",5,"Lotus",0]],"kami":[],"cards":["Base","Monster pack"]}
+]
+</script>
+<script>
+// snapshot of this page as written (before scripts change it), used by "Download updated page"
+const PAGE_SOURCE = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+/* =========================================================
+   NAME ALIASES — map a nickname to the name used everywhere else
+   ========================================================= */
+const ALIASES = { "Jd":"JD" };
+// turn order is set by clan (Chandler): Koi goes 1st, then Sun, Lotus, Turtle, Dragonfly, Fox, Bonsai, Moon
+const START_ORDER = { Koi:1, Sun:2, Lotus:3, Turtle:4, Dragonfly:5, Fox:6, Bonsai:7, Moon:8 };
+
+// Battle data lives in the <script id="battle-data"> JSON block above, so "Download
+// updated page" can write a new copy of this file with every battle built in.
+// Anything recorded or edited here is kept as a "working copy" in this browser until then.
+const BUILTIN_TEXT = document.getElementById("battle-data").textContent.trim();
+const BUILTIN_GAMES = JSON.parse(BUILTIN_TEXT);
+const BUILTIN_IDS = new Set(BUILTIN_GAMES.map(g=>g.id).filter(Boolean));
+const hashText = s => { let h=5381; for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))|0; return (h>>>0).toString(36); };
+const BASE = hashText(BUILTIN_TEXT);          // a working copy only applies to the exact page it was made from
+const WORK_KEY = "rs-working-copy";
+// typed text is shown inside the page's HTML, so strip characters that could be read as markup
+const plain = s => typeof s === "string" ? s.replace(/[<>"`]/g, "").trim() : s;
+function cleanBattle(g){
+  const o={};
+  if(g.id) o.id=g.id;
+  if(g.date) o.date=plain(g.date);
+  if(g.players) o.players=g.players;
+  if(g.partial) o.partial=g.partial;
+  if(g.note) o.note=plain(g.note);
+  o.results=(g.results||[]).map(([n,s,c,bt])=>{ const row=[plain(n), typeof s==="number"&&isFinite(s)?s:null, plain(c)||null]; if(typeof bt==="number"&&isFinite(bt)) row.push(bt); return row; });   // 4th value: betrayal tiles played (absent = not tracked)
+  o.kami=(g.kami||[]).map(plain).filter(Boolean);
+  o.cards=(g.cards||[]).map(plain).filter(Boolean);
+  if(typeof g.photo==="string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(g.photo)) o.photo=g.photo;   // optional board photo, stored inline
+  return o;
+}
+function loadWorking(){
+  try{ const w=JSON.parse(localStorage.getItem(WORK_KEY)||"null"); if(w && w.base===BASE && Array.isArray(w.games)) return w.games; }catch(e){}
+  return null;
+}
+// returns false when the browser has no room left (usually because of photos)
+function saveWorking(games){ try{ localStorage.setItem(WORK_KEY, JSON.stringify({ base:BASE, games:games.map(cleanBattle) })); return true; }catch(e){ return false; } }
+function clearWorking(){ localStorage.removeItem(WORK_KEY); }
+// carry over battles recorded with the earlier version of the form
+(function(){
+  const old=localStorage.getItem("rs-saved-battles"); if(!old) return;
+  try{ const list=JSON.parse(old).filter(g=>g&&Array.isArray(g.results)&&!BUILTIN_IDS.has(g.id)); if(list.length) saveWorking((loadWorking()||BUILTIN_GAMES).concat(list)); }catch(e){}
+  localStorage.removeItem("rs-saved-battles");
+})();
+const WORKING = loadWorking();
+const sameData = (a,b) => JSON.stringify(a.map(cleanBattle)) === JSON.stringify(b.map(cleanBattle));
+const HAS_CHANGES = !!WORKING && !sameData(WORKING, BUILTIN_GAMES);
+const GAMES = (WORKING || BUILTIN_GAMES).map(cleanBattle).map(g=>({ ...g, saved: !!g.id && !BUILTIN_IDS.has(g.id) }));
+GAMES.forEach((g,i)=> g.n = i+1);
+
+/* =========================================================
+   HOVER INFO for Kami & card sets / expansions
+   - who:    who the Kami is in Japanese mythology
+   - effect: what winning its shrine does (from ultraboardgames.com/rising-sun/kami-turns.php)
+   - CARD_INFO "what": a description for a card set; blank ones show "No description added yet."
+   ========================================================= */
+const KAMI_INFO = {
+  Amaterasu: { who:"Goddess of the sun and ruler of the heavens, the most revered Kami in Shinto.", effect:"Jump straight to the top of the Honor track, pushing everyone else down one." },
+  Tsukuyomi: { who:"God of the moon, brother of Amaterasu.", effect:"Gain 2 Coins." },
+  Susanoo:   { who:"God of storms and the sea, the unruly brother of Amaterasu.", effect:"Score 1 VP for each of your Strongholds on the map." },
+  Raijin:    { who:"God of thunder and lightning, often shown beating drums.", effect:"Summon 1 Bushi from your reserve into any province, even one without your Stronghold." },
+  Fujin:     { who:"God of the wind, carrying a bag of winds. Often paired with Raijin.", effect:"Make up to 2 moves on the map (2 figures one step each, or 1 figure twice), like a Marshal." },
+  Ryujin:    { who:"Dragon god of the sea, said to control the tides.", effect:"Buy one of the available Season cards at its full Coin cost, like a Train." },
+  Hachiman:  { who:"God of war and archery, protector of warriors.", effect:"Gain 2 Ronin tokens." },
+};
+const CARD_INFO = {
+  "Standard":     { what:"The base game's Season cards." },
+  "Basic":        { what:"The base game's Season cards." },
+  "Base":         { what:"The base game's Season cards." },
+  "Monster pack": { what:"Monster Pack expansion: adds four monsters (Oni of Plagues, Fire Dragon, Jinmenju and Jorogumo) that clans can recruit." },
+  "Monster":      { what:"Monster Pack expansion: adds four monsters (Oni of Plagues, Fire Dragon, Jinmenju and Jorogumo) that clans can recruit." },
+  "Seven Gods pack": { what:"" },
+  "Foreign Gods": { what:"" },
+  "Kami (mountain)": { what:"" },
+  "Teapot":       { what:"" },
+  "Stamped":      { what:"" },
+  "Lucky Monsters": { what:"" },
+  "Gate":         { what:"" },
+  "Arrow":        { what:"" },
+  "Horse":        { what:"" },
+  "S&M Monsters": { what:"" },
+};
+function chip(k){
+  const ki=KAMI_INFO[k], ci=CARD_INFO[k];
+  let html="";
+  if(ki) html=`<b>${k}</b><br>${ki.who}${ki.effect?`<br><br><b>Shrine favor:</b> ${ki.effect}<span class="src">Goes to whoever has the most force at the shrine during a Kami turn. Ties go to higher Honor.</span>`:""}`;
+  else if(ci && ci.what) html=`<b>${k}</b><br>${ci.what}`;
+  else if(ci) html=`<b>${k}</b><br>Card set or expansion from the group's notes. No description added yet.`;
+  return html ? `<span class="chip" data-info="${html.replace(/"/g,"&quot;")}" tabindex="0">${k}</span>` : `<span class="chip">${k}</span>`;
+}
+
+/* =========================================================
+   CLAN MONS (original simple emblems)
+   ========================================================= */
+const CLAN_COLORS = { Fox:"#d9641e", Sun:"#c8102e", Lotus:"#c25a9a", Koi:"#e0752d", Turtle:"#2f8f5b", Bonsai:"#4f7a2a", Moon:"#3f5fae", Dragonfly:"#2a8fb0" };
+function mon(clan, size=56){
+  const c = CLAN_COLORS[clan] || "#8a8279";
+  const inner = {
+    Sun:`<circle cx="50" cy="50" r="18" fill="#fff"/>${Array.from({length:12},(_,i)=>`<rect x="48" y="14" width="4" height="12" rx="2" fill="#fff" transform="rotate(${i*30} 50 50)"/>`).join("")}`,
+    Moon:`<circle cx="50" cy="50" r="24" fill="#fff"/><circle cx="60" cy="44" r="21" fill="${c}"/>`,
+    Fox:`<path d="M28 30 L40 46 L60 46 L72 30 L70 56 L50 76 L30 56Z" fill="#fff"/><circle cx="42" cy="56" r="3" fill="${c}"/><circle cx="58" cy="56" r="3" fill="${c}"/><path d="M47 66 L53 66 L50 70Z" fill="${c}"/>`,
+    Lotus:`<g fill="#fff"><path d="M50 26 C60 40 60 56 50 68 C40 56 40 40 50 26Z"/><path d="M26 44 C40 46 48 56 50 68 C36 66 28 58 26 44Z"/><path d="M74 44 C60 46 52 56 50 68 C64 66 72 58 74 44Z"/><rect x="30" y="70" width="40" height="4" rx="2"/></g>`,
+    Koi:`<path d="M24 52 C34 34 60 32 70 46 L82 36 L78 52 L82 66 L70 58 C60 70 34 68 24 52Z" fill="#fff"/><circle cx="34" cy="49" r="3" fill="${c}"/><path d="M48 40 Q52 52 48 62" stroke="${c}" stroke-width="2" fill="none"/>`,
+    Turtle:`<g fill="#fff"><ellipse cx="50" cy="52" rx="20" ry="16"/><circle cx="50" cy="30" r="7"/><circle cx="31" cy="40" r="5"/><circle cx="69" cy="40" r="5"/><circle cx="31" cy="64" r="5"/><circle cx="69" cy="64" r="5"/></g><path d="M50 40 L60 47 L57 60 L43 60 L40 47Z" fill="none" stroke="${c}" stroke-width="2.2"/>`,
+    Bonsai:`<g fill="#fff"><rect x="47" y="46" width="6" height="22"/><ellipse cx="38" cy="42" rx="14" ry="8"/><ellipse cx="62" cy="38" rx="14" ry="8"/><ellipse cx="50" cy="28" rx="11" ry="7"/><path d="M32 68 L68 68 L63 78 L37 78Z"/></g>`,
+    Dragonfly:`<g fill="#fff"><rect x="48" y="26" width="4" height="50" rx="2"/><circle cx="50" cy="26" r="5"/><ellipse cx="34" cy="38" rx="15" ry="5" transform="rotate(-12 34 38)"/><ellipse cx="66" cy="38" rx="15" ry="5" transform="rotate(12 66 38)"/><ellipse cx="35" cy="49" rx="13" ry="4.5" transform="rotate(10 35 49)"/><ellipse cx="65" cy="49" rx="13" ry="4.5" transform="rotate(-10 65 49)"/></g>`,
+  }[clan] || `<text x="50" y="60" text-anchor="middle" font-size="30" fill="#fff">?</text>`;
+  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" role="img" aria-label="${clan||"Unknown"} Clan"><circle cx="50" cy="50" r="46" fill="${c}"/><circle cx="50" cy="50" r="41" fill="none" stroke="#fff" stroke-width="1.5" opacity=".6"/>${inner}</svg>`;
+}
+
+/* award icons */
+const ICONS = {
+  crown:`<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="25" fill="#c8102e"/><path d="M12 34 L14 18 L21 26 L26 14 L31 26 L38 18 L40 34Z" fill="#fff"/><rect x="12" y="35" width="28" height="4" rx="1" fill="#fff"/></svg>`,
+  katana:`<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="25" fill="#1d1a16"/><path d="M12 40 L38 12 L40 14 L14 42Z" fill="#e9dfcf"/><rect x="11" y="37" width="9" height="3" transform="rotate(-47 15 38)" fill="#b8892b"/></svg>`,
+  scroll:`<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="25" fill="#b8892b"/><rect x="15" y="14" width="22" height="24" rx="2" fill="#fbf6ea"/><rect x="13" y="12" width="26" height="4" rx="2" fill="#7a4e12"/><rect x="13" y="36" width="26" height="4" rx="2" fill="#7a4e12"/><path d="M19 21h14M19 26h14M19 31h9" stroke="#1d1a16" stroke-width="1.6"/></svg>`,
+  oni:`<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="25" fill="#6b1d1d"/><path d="M16 16 L20 8 L22 18Z M36 16 L32 8 L30 18Z" fill="#e9dfcf"/><circle cx="26" cy="29" r="13" fill="#e34948"/><circle cx="21" cy="26" r="2.4" fill="#fff"/><circle cx="31" cy="26" r="2.4" fill="#fff"/><path d="M19 35 Q26 30 33 35" stroke="#fff" stroke-width="2" fill="none"/></svg>`,
+  sake:`<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="25" fill="#2a78d6"/><path d="M21 12h10v6c5 3 6 9 6 14v8H15v-8c0-5 1-11 6-14Z" fill="#fbf6ea"/><rect x="21" y="9" width="10" height="4" rx="1" fill="#1d1a16"/></svg>`,
+  shield:`<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="25" fill="#2f8f5b"/><path d="M26 11 L38 16 V26 C38 34 32 39 26 42 C20 39 14 34 14 26 V16Z" fill="#fbf6ea"/></svg>`,
+  wave:`<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="25" fill="#3f5fae"/><path d="M8 32 C14 22 22 22 26 30 C30 22 38 22 44 32" stroke="#fff" stroke-width="3" fill="none"/><path d="M8 40 C14 32 22 32 26 38 C30 32 38 32 44 40" stroke="#fff" stroke-width="2" fill="none" opacity=".7"/></svg>`,
+  lantern:`<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="25" fill="#eb6834"/><rect x="20" y="10" width="12" height="4" fill="#1d1a16"/><ellipse cx="26" cy="26" rx="11" ry="13" fill="#fbf6ea"/><path d="M15 22h22M15 30h22" stroke="#c8102e" stroke-width="1.5"/><rect x="20" y="38" width="12" height="4" fill="#1d1a16"/></svg>`,
+};
+
+/* =========================================================
+   COMPUTE
+   ========================================================= */
+const canon = n => ALIASES[n] || n;
+const K = 32, START = 1500, PROVISIONAL = 2;   // a long game: 2+ battles earns a rank, 1 battle = Ronin
+
+const P = {}; // player stats
+const get = n => P[n] ??= { name:n, elo:START, games:0, wins:0, scores:[], finishes:[], rel:[], clans:{}, history:[], best:null };
+const eloTimeline = []; // after each game: snapshot
+
+for (const g of GAMES){
+  g.rows = g.results.map(([name,score,clan,betray]) => ({ name:canon(name), score, clan, betray: typeof betray==="number"?betray:null }));
+  // starting seat: clans take turns in a fixed order, so seat = position among the clans at this table
+  if (g.rows.length && g.rows.every(r=>START_ORDER[r.clan])) [...g.rows].sort((a,b)=>START_ORDER[a.clan]-START_ORDER[b.clan]).forEach((r,i)=>r.seat=i+1);
+  g.size = g.players || g.rows.length;
+  // placements (ties share best place)
+  if (!g.partial){
+    g.rows.forEach(r => { r.place = 1 + g.rows.filter(o => o.score > r.score).length; });
+    const avg = g.rows.reduce((s,r)=>s+r.score,0)/g.rows.length;
+    g.avg = avg;
+    g.rows.forEach(r => r.rel = r.score/avg);
+  } else {
+    g.rows.forEach((r,i) => r.place = i===0 ? 1 : null);
+  }
+
+  // basic stats
+  g.rows.forEach(r => {
+    const p = get(r.name);
+    p.games++;
+    if (r.place === 1) p.wins++;
+    if (r.score != null && !g.partial) p.scores.push(r.score);
+    if (r.score != null && g.partial && r.place===1) p.partialWinScores = (p.partialWinScores||[]).concat(r.score);
+    if (r.place != null && !g.partial) p.finishes.push((g.size - r.place)/(g.size - 1));
+    if (r.rel != null) p.rel.push(r.rel);
+    if (r.clan){ p.clans[r.clan] = (p.clans[r.clan]||0)+1; if (r.place===1) (p.clanWins ??= {})[r.clan] = ((p.clanWins||{})[r.clan]||0)+1; }
+    if (r.score != null && (p.best==null || r.score > p.best)) p.best = r.score;
+  });
+
+  // Elo
+  const pairs = [];
+  if (g.partial === "winnerOnly"){
+    const w = g.rows[0];
+    g.rows.slice(1).forEach(l => pairs.push([w.name, l.name, 1]));
+  } else if (!g.partial){
+    for (let i=0;i<g.rows.length;i++) for (let j=i+1;j<g.rows.length;j++){
+      const a=g.rows[i], b=g.rows[j];
+      pairs.push([a.name,b.name, a.score>b.score?1 : a.score<b.score?0 : .5]);
+    }
+  }
+  g.eloUsed = pairs.length > 0;
+  if (g.eloUsed){
+    const kk = K/(g.size-1);
+    const delta = {};
+    pairs.forEach(([a,b,s]) => {
+      const ea = 1/(1+10**((P[b].elo - P[a].elo)/400));
+      delta[a] = (delta[a]||0) + kk*(s-ea);
+      delta[b] = (delta[b]||0) + kk*((1-s)-(1-ea));
+    });
+    g.rows.forEach(r => { r.delta = delta[r.name]||0; });
+    Object.entries(delta).forEach(([n,d]) => P[n].elo += d);
+  }
+  const snap = {}; Object.values(P).forEach(p => snap[p.name] = p.elo);
+  eloTimeline.push({ game:g.n, ratings:snap, present:new Set(g.rows.map(r=>r.name)) });
+  g.rows.forEach(r => P[r.name].history.push({ game:g.n, elo:P[r.name].elo }));
+}
+
+const mean = a => a.length ? a.reduce((s,x)=>s+x,0)/a.length : null;
+const ordinal = n => { const s=["th","st","nd","rd"], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); };   // 1st, 2nd, 3rd…
+const players = Object.values(P).map(p => ({
+  ...p,
+  avg: mean(p.scores), avgFinish: p.finishes.length ? mean(p.finishes)*100 : null,
+  relAvg: p.rel.length ? mean(p.rel)*100 : null,
+  winPct: p.wins/p.games*100,
+  worst: p.scores.length ? Math.min(...p.scores) : null,
+  hi: p.scores.length ? Math.max(...p.scores, ...(p.partialWinScores||[])) : (p.partialWinScores? Math.max(...p.partialWinScores):null),
+  favClan: Object.entries(p.clans).sort((a,b)=>b[1]-a[1] || ((p.clanWins||{})[b[0]]||0)-((p.clanWins||{})[a[0]]||0))[0]?.[0] || null,
+  prov: p.games < PROVISIONAL,
+})).sort((a,b) => b.elo - a.elo);
+
+/* ---------- rank titles by Elo tier ---------- */
+const TIERS = [
+  { key:"shogun",   name:"Shogun",   kanji:"将軍", color:"#c8102e", min:null, desc:"The single highest-rated regular. Rules the realm." },
+  { key:"daimyo",   name:"Daimyo",   kanji:"大名", color:"#b8892b", min:1520, desc:"Elo 1520+. A great lord with lands and armies." },
+  { key:"samurai",  name:"Samurai",  kanji:"侍",   color:"#2a78d6", min:1500, desc:"Elo 1500–1519. An honored warrior at or above average." },
+  { key:"ashigaru", name:"Ashigaru", kanji:"足軽", color:"#2f8f5b", min:1480, desc:"Elo 1480–1499. A foot soldier fighting to climb." },
+  { key:"peasant",  name:"Peasant",  kanji:"農民", color:"#7a6a55", min:-Infinity, desc:"Below 1480. Tends the rice fields… for now." },
+  { key:"ronin",    name:"Ronin",    kanji:"浪人", color:"#55504a", min:null, desc:"Only 1 battle so far. A wandering, masterless warrior with no rank yet." },
+];
+const TIER = Object.fromEntries(TIERS.map(t=>[t.key,t]));
+function tierFor(p, isTop){
+  if (p.games < PROVISIONAL) return TIER.ronin;
+  if (isTop) return TIER.shogun;
+  return [TIER.daimyo,TIER.samurai,TIER.ashigaru,TIER.peasant].find(t=>p.elo>=t.min);
+}
+const topReg = players.find(p=>!p.prov);
+players.forEach(p=> p.tier = tierFor(p, p===topReg));
+const seal = (t, sm=true) => `<span class="seal${sm?" sm":""}" style="background:${t.color}" title="${t.name}">${t.kanji}</span>`;
+
+/* =========================================================
+   RENDER — tiles & podium
+   ========================================================= */
+const allRows = GAMES.flatMap(g => g.rows.map(r => ({...r, game:g.n, g})));
+const scored = allRows.filter(r => r.score!=null);
+const topScore = scored.reduce((a,b)=> b.score>a.score?b:a);
+const lowScore = scored.filter(r=>!r.g.partial).reduce((a,b)=> b.score<a.score?b:a);   // the most dishonorable showing
+document.getElementById("tiles").innerHTML = [
+  [GAMES.length,"Battles fought"],[players.length,"Warlords"],[topScore.score,"Greatest Glory","high",topScore.name],[lowScore.score,"Deepest Dishonor","low",lowScore.name],[Math.round(mean(GAMES.filter(g=>!g.partial).map(g=>Math.max(...g.rows.map(r=>r.score))))),"Avg winning score"]
+].map(([n,l,cls,who])=>`<div class="tile${cls?" "+cls:""}">${cls?`<span class="tk" aria-hidden="true">${cls==="high"?"栄":"恥"}</span>`:""}<div class="n serif" data-n="${n}">0</div><div class="l">${l}</div>${who?`<div class="who serif">${who}</div>`:""}</div>`).join("");
+
+const ranked = players.filter(p=>!p.prov);
+const podOrder = [1,0,2];
+document.getElementById("podium").innerHTML = podOrder.map(i => {
+  const p = ranked[i]; if(!p) return "<div></div>";
+  return `<div class="pod p${i+1}">${i===0?`<span class="hanko" title="Victory">勝</span>`:""}${mon(p.favClan,72)}<div class="place">${["1st","2nd","3rd"][i]} place</div><div class="name serif">${p.name}</div><div class="elo">Elo <b>${Math.round(p.elo)}</b> · ${p.wins}W / ${p.games}G</div><div class="title">${p.tier.kanji} ${p.tier.name}</div></div>`;
+}).join("");
+
+/* ---------- leaderboard table ---------- */
+const COLS = [
+  {k:"rank",l:"#",cls:"l"},
+  {k:"name",l:"Warlord",cls:"l"},
+  {k:"tierName",l:"Title",cls:"l"},
+  {k:"elo",l:"Elo",fmt:v=>Math.round(v)},
+  {k:"games",l:"Games"},
+  {k:"wins",l:"Wins"},
+  {k:"winPct",l:"Win %",fmt:v=>v.toFixed(0)+"%"},
+  {k:"avg",l:"Avg VP",fmt:v=>v==null?"—":v.toFixed(1)},
+  {k:"avgFinish",l:"Avg Finish",fmt:v=>v==null?"—":v.toFixed(0)},
+  {k:"relAvg",l:"Score vs Table",fmt:v=>v==null?"—":v.toFixed(0)+"%"},
+  {k:"hi",l:"Best",fmt:v=>v==null?"—":v},
+  {k:"worst",l:"Worst",fmt:v=>v==null?"—":v},
+  {k:"favClan",l:"Fav Clan",cls:"l"},
+];
+players.forEach((p,i)=>{p.rank=i+1; p.tierName=10-TIERS.indexOf(p.tier);});  // numeric so sorting follows rank order
+let sortKey="elo", sortDir=-1;
+const eloMin = Math.min(...players.map(p=>p.elo)), eloMax = Math.max(...players.map(p=>p.elo));
+function renderBoard(){
+  const rows=[...players].sort((a,b)=>{const x=a[sortKey],y=b[sortKey]; if(x==null) return 1; if(y==null) return -1; return (typeof x==="string"? x.localeCompare(y): x-y)*sortDir;});
+  document.getElementById("board").innerHTML =
+    `<thead><tr>${COLS.map(c=>`<th class="${c.cls||""}" data-k="${c.k}">${c.l}${sortKey===c.k?(sortDir<0?" ▼":" ▲"):""}</th>`).join("")}</tr></thead><tbody>`+
+    rows.map(p=>`<tr>${COLS.map(c=>{
+      const v=p[c.k];
+      if(c.k==="rank") return `<td class="l"><span class="rank r${p.rank}">${p.rank}</span></td>`;
+      if(c.k==="name") return `<td class="l name">${p.name}</td>`;
+      if(c.k==="tierName") return `<td class="l"><span class="titlecell">${seal(p.tier)}${p.tier.name}</span></td>`;
+      if(c.k==="favClan") return `<td class="l">${v?mon(v,22).replace("<svg",'<svg class="mon"')+v:"—"}</td>`;
+      if(c.k==="elo"){const w=6+ (v-eloMin)/(eloMax-eloMin||1)*46; return `<td>${Math.round(v)}<span class="bar" style="width:${w}px;opacity:${p.prov?.35:1}"></span></td>`;}
+      return `<td>${c.fmt?c.fmt(v):v}</td>`;
+    }).join("")}</tr>`).join("")+"</tbody>";
+  document.querySelectorAll("#board th").forEach(th=>th.onclick=()=>{const k=th.dataset.k; if(k==="rank"){sortKey="elo";sortDir=-1;} else if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=(k==="name"||k==="favClan")?1:-1;} renderBoard();});
+}
+renderBoard();
+
+/* ---------- Elo line chart (with replay + standings race) ---------- */
+// validated categorical palettes: light on parchment, dark on night surface
+const SERIES_DAY   = ["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"];
+const SERIES_NIGHT = ["#3987e5","#d95926","#199e70","#c98500","#d55181","#0ca30c","#9085e9","#e66767"];
+const isNight = () => document.documentElement.dataset.theme === "night";
+// chart lines: the 8 ranked warlords with the most battles (8 = size of the validated color palette), ordered by Elo
+const regulars = players.filter(p=>p.games>=PROVISIONAL).sort((a,b)=>b.games-a.games || b.elo-a.elo).slice(0,8).sort((a,b)=>b.elo-a.elo);
+function paintSeries(){ const S=isNight()?SERIES_NIGHT:SERIES_DAY; regulars.forEach((p,i)=>p.color=S[i]); }
+paintSeries();
+const hidden = new Set();
+let upTo = GAMES.length;   // replay cursor: show results through this battle
+let replaying=false, replayTimer=null;
+const ratingAt = (name, gi) => gi===0 ? START : (eloTimeline[gi-1].ratings[name] ?? null);
+
+function eloChart(){
+  const W=1080,H=400,m={t:16,r:110,b:36,l:48};
+  const iw=W-m.l-m.r, ih=H-m.t-m.b;
+  const xs = i => m.l + i/(GAMES.length)*iw;  // x=0 is "start"
+  const vals = regulars.flatMap(p=>p.history.map(h=>h.elo)).concat(START);
+  const lo = Math.floor((Math.min(...vals)-10)/20)*20, hi = Math.ceil((Math.max(...vals)+10)/20)*20;
+  const ys = v => m.t + (hi-v)/(hi-lo)*ih;
+  const cursor = upTo<GAMES.length;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Elo rating over time">`;
+  for(let v=lo; v<=hi; v+=20){ s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${ys(v)}" y2="${ys(v)}" stroke="${v===START?"#b9ad97":"#ece2cc"}" ${v===START?'stroke-dasharray="4 4"':""}/><text x="${m.l-8}" y="${ys(v)+4}" text-anchor="end" font-size="11" fill="#8a8279">${v}</text>`; }
+  for(let i=0;i<=GAMES.length;i++){ const on=cursor&&i===upTo; s+=`<text x="${xs(i)}" y="${H-12}" text-anchor="middle" font-size="11" fill="${on?"#c8102e":"#8a8279"}" font-weight="${on?700:400}">${i===0?"Start":"G"+i}</text>`; }
+  if(cursor) s+=`<rect x="${xs(upTo)}" y="${m.t}" width="${xs(GAMES.length)-xs(upTo)}" height="${ih}" fill="#8a8279" opacity=".07"/>`;
+  const ends=[];
+  regulars.forEach(p=>{
+    if(hidden.has(p.name)) return;
+    const hist=p.history.filter(h=>h.game<=upTo);
+    const pts=[[0,START],...hist.map(h=>[h.game,h.elo])];
+    const d=pts.map(([g,e],i)=>`${i?"L":"M"}${xs(g).toFixed(1)},${ys(e).toFixed(1)}`).join("");
+    s+=`<path d="${d}" fill="none" stroke="${p.color}" stroke-width="2.6" filter="url(#brush)" stroke-linejoin="round" stroke-linecap="round"/>`;
+    hist.forEach(h=>{ const fresh=cursor&&h.game===upTo; s+=`<circle cx="${xs(h.game)}" cy="${ys(h.elo)}" r="${fresh?6:4}" fill="${p.color}" stroke="#fbf6ea" stroke-width="2"/>`; });
+    const last=pts[pts.length-1]; ends.push({p, x:xs(last[0]), y:ys(last[1]), v:last[1]});
+  });
+  ends.sort((a,b)=>a.y-b.y); let prev=-99;
+  ends.forEach(e=>{ e.ly=Math.max(e.y, prev+15); prev=e.ly; });
+  ends.forEach(e=>{ s+=`<line x1="${e.x+6}" x2="${W-m.r+8}" y1="${e.y}" y2="${e.ly}" stroke="#d8ccb3" stroke-dasharray="2 3"/><text x="${W-m.r+12}" y="${e.ly+4}" font-size="12" fill="#1d1a16">${e.p.name} <tspan fill="#8a8279">${Math.round(e.v)}</tspan></text>`; });
+  s+=`<line id="xh" y1="${m.t}" y2="${H-m.b}" stroke="#1d1a16" stroke-width="1" opacity="0"/><rect id="hit" x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent"/></svg><div class="tip" id="eloTip"></div>`;
+  const el=document.getElementById("eloChart"); el.innerHTML=s;
+  const svg=el.querySelector("svg"), tip=el.querySelector("#eloTip"), xh=el.querySelector("#xh");
+  el.querySelector("#hit").addEventListener("mousemove",ev=>{
+    const r=svg.getBoundingClientRect(), sx=(ev.clientX-r.left)*W/r.width;
+    const gi=Math.max(0,Math.min(upTo,Math.round((sx-m.l)/iw*GAMES.length)));
+    xh.setAttribute("x1",xs(gi)); xh.setAttribute("x2",xs(gi)); xh.setAttribute("opacity",.3);
+    const snap = gi===0? null : eloTimeline[gi-1];
+    const list = regulars.filter(p=>!hidden.has(p.name)).map(p=>({p,v:ratingAt(p.name,gi), played: snap? snap.present.has(p.name):false})).filter(o=>o.v!=null).sort((a,b)=>b.v-a.v);
+    tip.innerHTML=`<b>${gi===0?"Start":"After battle "+gi}</b>`+list.map(o=>`<div class="row"><span><span class="sw" style="background:${o.p.color}"></span>${o.p.name}${o.played?" ⚔":""}</span><span>${Math.round(o.v)}</span></div>`).join("")+(gi?`<div style="color:#cbbfa8;margin-top:4px;font-size:11px">⚔ = played this battle</div>`:"");
+    tip.style.opacity=1;
+    const px=(xs(gi)/W)*r.width; tip.style.left=(px>r.width*.6? px-tip.offsetWidth-12 : px+12)+"px"; tip.style.top="10px";
+  });
+  el.querySelector("#hit").addEventListener("mouseleave",()=>{tip.style.opacity=0; xh.setAttribute("opacity",0);});
+  renderRace();
+}
+
+// standings race: rows keep their DOM node so a rank change slides into place
+const raceEl=document.getElementById("race"); const raceRows={}; let lastOrder=null;
+function renderRace(){
+  const list=regulars.map(p=>({p, v:ratingAt(p.name,upTo)})).filter(o=>o.v!=null).sort((a,b)=>b.v-a.v || a.p.name.localeCompare(b.p.name));
+  list.forEach((o,i)=>{
+    let r=raceRows[o.p.name];
+    if(!r){ r=document.createElement("div"); r.className="rrow"; raceEl.appendChild(r); raceRows[o.p.name]=r; }
+    r.innerHTML=`<span class="rk">${i+1}</span><span class="dot" style="background:${o.p.color}"></span><span class="nm">${o.p.name}</span><span class="ev">${Math.round(o.v)}</span>`;
+    r.style.top=(i*36)+"px"; r.style.order=i;   // order: used by the phone layout, where rows sit in a grid
+    if(lastOrder && lastOrder.indexOf(o.p.name)>i){ r.classList.remove("moved"); void r.offsetWidth; r.classList.add("moved"); }
+  });
+  lastOrder=list.map(o=>o.p.name);
+  // what happened in this battle
+  const news=document.getElementById("replayNews");
+  if(upTo===0) news.innerHTML="Everyone starts at 1500. Press ▶ to watch the war unfold.";
+  else if(upTo<GAMES.length || replaying){
+    const g=GAMES[upTo-1], w=g.rows[0];
+    news.innerHTML=`<span class="hanko">勝</span><b>Battle ${g.n}${g.date?" ("+g.date+")":""}:</b> ${w.name} wins${w.score!=null?" with "+w.score+" VP":""}${w.clan?" as the "+w.clan+" Clan":""}.${g.note?` <i style="color:var(--ink-2)">${g.note}</i>`:""}`;
+  } else news.innerHTML="";
+  document.getElementById("replayLabel").textContent = upTo===0 ? "Before the first battle" : upTo===GAMES.length ? "After all battles" : `After battle ${upTo} of ${GAMES.length}`;
+  document.getElementById("replaySlider").value=upTo;
+}
+
+function renderLegend(){
+  document.getElementById("eloLegend").innerHTML = regulars.map(p=>`<span data-n="${p.name}" class="${hidden.has(p.name)?"off":""}"><i style="background:${p.color}"></i>${p.name}</span>`).join("");
+  document.querySelectorAll("#eloLegend span").forEach(sp=>sp.onclick=()=>{const n=sp.dataset.n; hidden.has(n)?hidden.delete(n):hidden.add(n); renderLegend(); eloChart();});
+}
+renderLegend();
+
+// replay controls
+const replayBtn=document.getElementById("replayBtn");
+function stopReplay(){ replaying=false; clearInterval(replayTimer); replayBtn.textContent="▶ Replay the war"; }
+replayBtn.onclick=()=>{
+  if(replaying){ stopReplay(); return; }
+  replaying=true; replayBtn.textContent="⏸ Pause";
+  if(upTo>=GAMES.length){ upTo=0; lastOrder=null; }
+  eloChart();
+  replayTimer=setInterval(()=>{ upTo++; eloChart(); if(upTo>=GAMES.length) stopReplay(); }, 1500);
+};
+document.getElementById("replaySlider").max=GAMES.length;
+document.getElementById("replaySlider").addEventListener("input",ev=>{ stopReplay(); upTo=+ev.target.value; eloChart(); });
+eloChart();
+
+/* ---------- awards ---------- */
+(function(){
+  const reg = players.filter(p=>!p.prov);
+  const by = (arr,f,dir=-1)=>[...arr].filter(p=>f(p)!=null).sort((a,b)=>(f(a)-f(b))*dir)[0];
+  const lowest = scored.filter(r=>!r.g.partial).reduce((a,b)=>b.score<a.score?b:a);
+  const margins = GAMES.filter(g=>!g.partial).map(g=>{const s=[...g.rows].sort((a,b)=>b.score-a.score); return {g, w:s[0], m:s[0].score-s[1].score};});
+  const blow = margins.reduce((a,b)=>b.m>a.m?b:a);
+  const close = margins.filter(x=>x.m>0).reduce((a,b)=>b.m<a.m?b:a);
+  const iron = by(players,p=>p.games);
+  const consistent = by(reg.filter(p=>p.scores.length>=3),p=>{const a=mean(p.scores);return Math.sqrt(mean(p.scores.map(x=>(x-a)**2)));},1);
+  const sd = p=>{const a=mean(p.scores);return Math.sqrt(mean(p.scores.map(x=>(x-a)**2)));};
+  const climber = by(players.filter(p=>p.history.length>=2),p=>{const h=p.history;return h[h.length-1].elo-h[h.length-2].elo;});
+  const climbAmt = climber.history.at(-1).elo-climber.history.at(-2).elo;
+  const ronin = reg[reg.length-1];
+  const lastPlace = {}; GAMES.filter(g=>!g.partial).forEach(g=>{const mn=Math.min(...g.rows.map(r=>r.score)); g.rows.filter(r=>r.score===mn).forEach(r=>lastPlace[r.name]=(lastPlace[r.name]||0)+1);});
+  const lp = Object.entries(lastPlace).sort((a,b)=>b[1]-a[1])[0];
+  const mostWins = by(players,p=>p.wins);
+  const A = [
+    ["crown","The Shogun",reg[0].name,`Highest Elo among regulars (${Math.round(reg[0].elo)}).`],
+    ["scroll","Most Victories",mostWins.name,`${mostWins.wins} wins in ${mostWins.games} games${players.filter(p=>p.wins===mostWins.wins).length>1?" (tied with "+players.filter(p=>p.wins===mostWins.wins&&p!==mostWins).map(p=>p.name).join(", ")+")":""}.`],
+    ["katana","Legendary Conquest",topScore.name,`${topScore.score} VP in game ${topScore.game}, the highest score ever recorded.`],
+    ["wave","Tsunami",blow.w.name,`Won game ${blow.g.n} by ${blow.m} points, the biggest winning margin.`],
+    ["lantern","Photo Finish",close.w.name,`Won game ${close.g.n} by just ${close.m} point${close.m>1?"s":""}.`],
+    ["shield","Iron Samurai",iron.name,`Played ${iron.games} of ${GAMES.length} recorded games.`],
+    ["sake","Steady Hand",consistent.name,`Most consistent scores among regulars (± ${sd(consistent).toFixed(1)} VP).`],
+    ["oni","Dishonored",lowest.name,`Only ${lowest.score} VP in game ${lowest.game}, the lowest score recorded.`],
+    ["oni","The Ronin",ronin.name,`Lowest Elo among regulars (${Math.round(ronin.elo)}).`],
+    ["oni","Bottom of the Pond",lp[0],`Finished last ${lp[1]} time${lp[1]>1?"s":""}.`],
+    ["crown","Rising Star",climber.name,`Biggest Elo gain in their most recent game (+${Math.round(climbAmt)}).`],
+  ];
+  document.getElementById("awards").innerHTML = A.map(([i,t,w,d])=>`<div class="award"><div class="ico">${ICONS[i]}</div><div><h3 class="serif">${t}</h3><div class="who">${w}</div><p>${d}</p></div></div>`).join("");
+})();
+
+/* ---------- horizontal bar chart helper ---------- */
+// bar charts draw at the container's real width on phones so text stays readable; redrawn on resize
+const HBARS={};
+function redrawBars(){ for(const id in HBARS) hbar(id, ...HBARS[id]); }
+function hbar(elId, items, opts){
+  HBARS[elId]=[items,opts];
+  const {max, fmt=v=>v, color="#c8102e", range=false, tipFn, step:stepOpt, tickFmt, min=0}=opts;
+  const cw=document.getElementById(elId).clientWidth, narrow=cw>0&&cw<700;
+  const rowH=30, W=narrow?Math.max(cw,280):1080, m=narrow?{l:92,r:40,t:6,b:24}:{l:130,r:70,t:6,b:24}, H=m.t+m.b+items.length*rowH;
+  const iw=W-m.l-m.r, xs=v=>m.l+v/max*iw;
+  let s=`<svg viewBox="0 0 ${W} ${H}">`;
+  let step = stepOpt || (max>200?50: max>60?10:5);
+  while(iw/((max-min)/step) < 38) step*=2;   // keep axis labels from colliding on narrow screens
+  for(let v=min;v<=max;v+=step) s+=`<line x1="${xs(v)}" x2="${xs(v)}" y1="${m.t}" y2="${H-m.b}" stroke="#ece2cc"/><text x="${xs(v)}" y="${H-6}" text-anchor="middle" font-size="11" fill="#8a8279">${(tickFmt||fmt)(v)}</text>`;
+  items.forEach((it,i)=>{
+    const y=m.t+i*rowH+6, h=rowH-12;
+    s+=`<g class="hb" data-i="${i}"><rect x="0" y="${y-6}" width="${W}" height="${rowH}" fill="transparent"/>`;
+    s+=`<text x="${m.l-10}" y="${y+h/2+4}" text-anchor="end" font-size="13" fill="#1d1a16">${it.label}</text>`;
+    s+=`<path d="M${m.l},${y} H${xs(it.v)-4} a4,4 0 0 1 4,4 V${y+h-4} a4,4 0 0 1 -4,4 H${m.l}Z" fill="${it.color||color}" opacity="${it.dim?.4:1}" filter="url(#brush)"/>`;
+    if(range&&it.lo!=null){ s+=`<line x1="${xs(it.lo)}" x2="${xs(it.hi)}" y1="${y+h/2}" y2="${y+h/2}" stroke="#1d1a16" stroke-width="1.5"/><line x1="${xs(it.lo)}" x2="${xs(it.lo)}" y1="${y+2}" y2="${y+h-2}" stroke="#1d1a16" stroke-width="1.5"/><line x1="${xs(it.hi)}" x2="${xs(it.hi)}" y1="${y+2}" y2="${y+h-2}" stroke="#1d1a16" stroke-width="1.5"/>`; }
+    s+=`<text x="${Math.max(xs(it.v), range&&it.hi!=null?xs(it.hi):0)+8}" y="${y+h/2+4}" font-size="12" fill="#55504a">${fmt(it.v)}</text></g>`;
+  });
+  s+=`</svg><div class="tip"></div>`;
+  const el=document.getElementById(elId); const keep=[...el.querySelectorAll(":scope > p")]; el.innerHTML=s; keep.forEach(p=>el.appendChild(p));
+  const tip=el.querySelector(".tip");
+  el.querySelectorAll(".hb").forEach(g=>{
+    g.addEventListener("mousemove",ev=>{const it=items[+g.dataset.i]; tip.innerHTML=tipFn(it); tip.style.opacity=1; const r=el.getBoundingClientRect(); tip.style.left=(ev.clientX-r.left+14)+"px"; tip.style.top=(ev.clientY-r.top+10)+"px";});
+    g.addEventListener("mouseleave",()=>tip.style.opacity=0);
+  });
+}
+const withScores = players.filter(p=>p.scores.length).sort((a,b)=>b.avg-a.avg);
+hbar("avgChart", withScores.map(p=>({label:p.name+(p.prov?" *":""), v:p.avg, lo:Math.min(...p.scores), hi:Math.max(...p.scores), dim:p.prov, p})),
+  {max:110, fmt:v=>typeof v==="number"? (Number.isInteger(v)?v:v.toFixed(1)):v, range:true,
+   tipFn:it=>`<b>${it.p.name}</b><div class="row"><span>Average</span><span>${it.v.toFixed(1)} VP</span></div><div class="row"><span>Range</span><span>${it.lo}–${it.hi}</span></div><div class="row"><span>Scored games</span><span>${it.p.scores.length}</span></div>${it.p.prov?'<div style="color:#cbbfa8;font-size:11px">* only 1 battle</div>':""}`});
+
+/* ---------- clans ---------- */
+(function(){
+  const C={};
+  GAMES.forEach(g=>g.rows.forEach(r=>{ if(!r.clan) return; const c=C[r.clan]??={clan:r.clan,plays:0,wins:0,scores:[],rel:[],fin:[],places:[],sizes:[],by:{}}; c.plays++; if(r.place===1)c.wins++; if(r.score!=null&&!g.partial){c.scores.push(r.score);c.rel.push(r.rel);c.fin.push((g.size-r.place)/(g.size-1));c.places.push(r.place);c.sizes.push(g.size);} c.by[r.name]=(c.by[r.name]||0)+1; }));
+  const list=Object.values(C).map(c=>({...c,avg:mean(c.scores),relAvg:mean(c.rel)*100,finAvg:mean(c.fin)*100,avgPlace:mean(c.places),avgSize:mean(c.sizes)})).sort((a,b)=>(b.relAvg||0)-(a.relAvg||0));
+  document.getElementById("clans").innerHTML=list.map(c=>`<div class="clan">${mon(c.clan,56).replace("<svg",'<svg class="big"')}<div><h4 class="serif">${c.clan} Clan</h4><div class="st">${c.plays} plays · <b>${c.wins}</b> win${c.wins===1?"":"s"}</div><div class="st">Avg place <b>${c.avgPlace?c.avgPlace.toFixed(1):"—"}</b> · Avg ${c.avg?c.avg.toFixed(1):"—"} VP</div><div class="st">${c.relAvg?c.relAvg.toFixed(0):"—"}% of table</div></div></div>`).join("");
+  // average finishing place: lower is better, so best clan sits on top with the shortest bar
+  const byPlace=list.filter(c=>c.avgPlace!=null).sort((a,b)=>a.avgPlace-b.avgPlace);
+  hbar("clanPlaceChart", byPlace.map(c=>({label:c.clan+" Clan", v:c.avgPlace, color:CLAN_COLORS[c.clan], c})),
+    {max:6, step:1, fmt:v=>v.toFixed(1), tickFmt:v=>v===0?"":ordinal(v),
+     tipFn:it=>`<b>${it.c.clan} Clan</b><div class="row"><span>Average place</span><span>${it.v.toFixed(2)}</span></div><div class="row"><span>Typical table size</span><span>${it.c.avgSize.toFixed(1)} players</span></div><div class="row"><span>Finishes</span><span>${it.c.places.slice().sort((a,b)=>a-b).map(ordinal).join(", ")}</span></div>`});
+  hbar("clanChart", list.map(c=>({label:c.clan+" Clan", v:c.relAvg, color:CLAN_COLORS[c.clan], c})),
+    {max:150, fmt:v=>Math.round(v)+"%", tipFn:it=>`<b>${it.c.clan} Clan</b><div class="row"><span>Score vs table</span><span>${it.v.toFixed(0)}%</span></div><div class="row"><span>Wins / plays</span><span>${it.c.wins} / ${it.c.plays}</span></div><div class="row"><span>Avg finish</span><span>${it.c.finAvg.toFixed(0)} / 100</span></div><div style="margin-top:4px;color:#cbbfa8;font-size:11px">Played by: ${Object.entries(it.c.by).map(([n,k])=>n+(k>1?" ×"+k:"")).join(", ")}</div>`});
+  const t=document.createElement("p"); t.className="lede"; t.style.marginTop="6px"; t.textContent="Bars show average score as a percentage of the table's average (100% = average). Note: each clan has only been played 4–8 times."; document.getElementById("clanChart").appendChild(t);
+})();
+
+/* ---------- starting order (seat) ---------- */
+(function(){
+  const clans=Object.keys(START_ORDER).sort((a,b)=>START_ORDER[a]-START_ORDER[b]);
+  document.getElementById("startOrder").innerHTML = clans.map((c,i)=>`${i?'<span class="arrow" aria-hidden="true">›</span>':""}<div class="step"><span class="no">${START_ORDER[c]}</span>${mon(c,40)}<b>${c}</b></div>`).join("");
+  const S={};
+  GAMES.filter(g=>!g.partial).forEach(g=>g.rows.forEach(r=>{ if(r.seat==null) return;
+    const s=S[r.seat]??={seat:r.seat,plays:0,wins:0,rel:[],places:[]}; s.plays++; if(r.place===1) s.wins++; s.rel.push(r.rel); s.places.push(r.place); }));
+  const seats=Object.values(S).sort((a,b)=>a.seat-b.seat).map(s=>({...s,relAvg:mean(s.rel)*100,avgPlace:mean(s.places)}));
+  if(!seats.length){ document.getElementById("seatChart").innerHTML=`<div class="empty">No battles with every clan recorded yet.</div>`; return; }
+  const used=GAMES.filter(g=>!g.partial&&g.rows.every(r=>r.seat!=null)).length;
+  hbar("seatChart", seats.map(s=>({label:`${ordinal(s.seat)} to act`, v:s.relAvg, s})),
+    {max:150, fmt:v=>Math.round(v)+"%", color:"#c8102e",
+     tipFn:it=>`<b>${ordinal(it.s.seat)} seat</b><div class="row"><span>Score vs table</span><span>${it.v.toFixed(0)}%</span></div><div class="row"><span>Wins / plays</span><span>${it.s.wins} / ${it.s.plays}</span></div><div class="row"><span>Average place</span><span>${it.s.avgPlace.toFixed(1)}</span></div>`});
+  const p=document.createElement("p"); p.className="lede"; p.style.marginTop="6px";
+  const first=seats.find(s=>s.seat===1);
+  p.textContent=`Bars show average score as a percentage of the table average by seat (100% = average), from ${used} battles with every clan recorded.${first?` Going first has won ${first.wins} of ${first.plays}.`:""}`;
+  document.getElementById("seatChart").appendChild(p);
+})();
+
+/* ---------- distrust meter (betrayal tile) ---------- */
+(function(){
+  const T={}; let tracked=0, totalB=0;
+  GAMES.forEach(g=>{
+    if(g.rows.some(r=>r.betray!=null)) tracked++;
+    g.rows.forEach(r=>{ if(r.betray==null) return; const t=T[r.name]??={name:r.name,tracked:0,betrayed:0,total:0,battles:[]};
+      t.tracked++; t.total+=r.betray; totalB+=r.betray; if(r.betray>0){ t.betrayed++; t.battles.push(g.n); } });
+  });
+  const el=document.getElementById("trustChart"), sum=document.getElementById("trustSummary");
+  if(!tracked){ sum.innerHTML=""; el.innerHTML=`<div class="empty">🗡 No betrayals tracked yet. Starting with the next battle, tap the 🗡 counter on <a href="#record">Record a Battle</a> each time someone plays the Betrayal tile.</div>`; return; }
+  const all=Object.values(T);
+  const traitors=all.filter(t=>t.total>0).sort((a,b)=>b.total-a.total||b.betrayed-a.betrayed||a.name.localeCompare(b.name));
+  const clean=all.filter(t=>t.total===0).sort((a,b)=>b.tracked-a.tracked||a.name.localeCompare(b.name));
+  sum.innerHTML=`<div class="dstat"><span class="big serif">${totalB}</span><span>betrayal${totalB===1?"":"s"} in ${tracked} tracked battle${tracked===1?"":"s"}</span></div>`+
+    (clean.length?`<div class="dclean"><b>🕊 Clean record:</b> ${clean.map(t=>`${t.name}${t.tracked>1?` <span class="s">(${t.tracked})</span>`:""}`).join(", ")}</div>`:"");
+  if(!traitors.length){ el.innerHTML=`<div class="empty">🕊 No one has played the Betrayal tile in a tracked battle. An honorable table!</div>`; return; }
+  const max=Math.max(4, ...traitors.map(t=>t.total));
+  hbar("trustChart", traitors.map(t=>({label:t.name, v:t.total, color:"#6b1d1d", t})),
+    {max, step:1, fmt:v=>String(v),
+     tipFn:it=>`<b>${it.t.name}</b><div class="row"><span>Betrayal tiles played</span><span>${it.t.total}</span></div><div class="row"><span>Battles with a betrayal</span><span>${it.t.betrayed} of ${it.t.tracked} tracked</span></div><div class="row"><span>Betrayed in</span><span>Battle ${it.t.battles.join(", ")}</span></div>`});
+})();
+
+/* ---------- head to head heatmap ---------- */
+(function(){
+  const R=players.filter(p=>!p.prov).map(p=>p.name);
+  const rec={}; R.forEach(a=>{rec[a]={};R.forEach(b=>rec[a][b]={w:0,l:0,d:0});});
+  GAMES.forEach(g=>{
+    const rs=g.rows;
+    for(const a of rs) for(const b of rs){ if(a===b||!R.includes(a.name)||!R.includes(b.name)) continue;
+      let res=null;
+      if(!g.partial) res = a.score>b.score?"w":a.score<b.score?"l":"d";
+      else if(g.partial==="winnerOnly"){ if(a.place===1) res="w"; else if(b.place===1) res="l"; }
+      if(res) rec[a.name][b.name][res]++; }
+  });
+  const cell=40, m={l:90,t:90}, W=m.l+R.length*cell+10, H=m.t+R.length*cell+10;
+  // diverging: blue (wins) – gray – red (losses)
+  const lerp=(a,b,t)=>Math.round(a+(b-a)*t);
+  const mix=(c1,c2,t)=>`rgb(${lerp(c1[0],c2[0],t)},${lerp(c1[1],c2[1],t)},${lerp(c1[2],c2[2],t)})`;
+  const NEU=[226,220,208], GOOD=[42,120,214], BAD=[200,16,46];
+  let s=`<svg viewBox="0 0 ${W} ${H}" style="max-width:${W}px">`;
+  R.forEach((n,i)=>{ s+=`<text x="${m.l-8}" y="${m.t+i*cell+cell/2+4}" text-anchor="end" font-size="12" fill="#1d1a16">${n}</text><text transform="translate(${m.l+i*cell+cell/2+4},${m.t-8}) rotate(-50)" font-size="12" fill="#1d1a16">${n}</text>`; });
+  R.forEach((a,i)=>R.forEach((b,j)=>{
+    const x=m.l+j*cell, y=m.t+i*cell;
+    if(a===b){ s+=`<rect x="${x+1}" y="${y+1}" width="${cell-2}" height="${cell-2}" rx="4" fill="#1d1a16" opacity=".08"/>`; return; }
+    const r=rec[a][b], tot=r.w+r.l+r.d;
+    if(!tot){ s+=`<rect x="${x+1}" y="${y+1}" width="${cell-2}" height="${cell-2}" rx="4" fill="none" stroke="#ece2cc"/>`; return; }
+    const pct=(r.w+r.d/2)/tot, t=Math.abs(pct-.5)*2;
+    const fill= pct>=.5? mix(NEU,GOOD,t): mix(NEU,BAD,t);
+    s+=`<rect class="hc" data-a="${a}" data-b="${b}" x="${x+1}" y="${y+1}" width="${cell-2}" height="${cell-2}" rx="4" fill="${fill}" filter="url(#brush)"/><text class="cell" x="${x+cell/2}" y="${y+cell/2+4}" text-anchor="middle" font-size="11" fill="${t>.55?"#fff":"#1d1a16"}" pointer-events="none">${r.w}-${r.l}${r.d?"-"+r.d:""}</text>`;
+  }));
+  s+=`</svg><div class="tip"></div><p class="lede" style="margin-top:8px">Cells read as row player's wins-losses(-draws) against the column player. <span style="color:#2a78d6;font-weight:700">Blue</span> = row player usually finishes higher · <span style="color:#c8102e;font-weight:700">Red</span> = row player usually finishes lower · empty = never played together.</p>`;
+  const el=document.getElementById("h2h"); el.innerHTML=s; const tip=el.querySelector(".tip");
+  el.querySelectorAll(".hc").forEach(c=>{
+    c.addEventListener("mousemove",ev=>{const a=c.dataset.a,b=c.dataset.b,r=rec[a][b]; tip.innerHTML=`<b>${a}</b> vs <b>${b}</b><div class="row"><span>${a} finished higher</span><span>${r.w}</span></div><div class="row"><span>${b} finished higher</span><span>${r.l}</span></div>${r.d?`<div class="row"><span>Tied</span><span>${r.d}</span></div>`:""}`; tip.style.opacity=1; const R2=el.getBoundingClientRect(); tip.style.left=(ev.clientX-R2.left+14)+"px"; tip.style.top=(ev.clientY-R2.top+10)+"px";});
+    c.addEventListener("mouseleave",()=>tip.style.opacity=0);
+  });
+})();
+
+/* ---------- game log ---------- */
+document.getElementById("games").innerHTML = GAMES.map(g=>{
+  const rows=g.rows.map(r=>{
+    const d=r.delta; const ds = d==null? "" : `<span class="${d>=0?"up":"down"}">${d>=0?"+":""}${Math.round(d)}</span>`;
+    return `<li><span class="pl">${r.place??"–"}</span>${r.clan?mon(r.clan,22).replace("<svg",'<svg class="mon"'):'<svg class="mon" viewBox="0 0 10 10"></svg>'}<span class="nm">${r.name}${r.place===1?`<span class="hanko" title="Victory">勝</span>`:""}${r.clan?` <span style="color:#8a8279;font-size:12px">· ${r.clan}</span>`:""}</span><span class="sc">${r.score??"?"}</span><span class="de">${ds}</span></li>`;
+  }).join("");
+  const extra = g.partial==="unknownField" ? `<li><span class="nm" style="color:#8a8279">+ ${g.size-1} unrecorded players</span></li>` : "";
+  return `<div class="game" id="battle-${g.n}"><div class="hd"><b class="serif">Battle ${g.n}${g.saved?`<span class="savedtag" title="Saved in this browser only. Use Download updated page to keep it.">NEW</span>`:""}</b><span>${g.size} players${g.date?" · "+g.date:""}</span></div><ol>${rows}${extra}</ol><div class="ft">${g.photo?`<button type="button" class="ph" data-photo="${g.n}" aria-label="Open battle ${g.n} photo"><img src="${g.photo}" alt="Battle ${g.n} board"></button>`:""}${g.note?`<div class="note">${g.note}</div>`:""}${g.kami.length?`<div><b>Kami:</b> ${g.kami.map(k=>chip(k)).join("")}</div>`:""}${g.cards.length?`<div><b>Cards / Expansions:</b> ${g.cards.map(k=>chip(k)).join("")}</div>`:""}</div></div>`;
+}).join("");
+
+/* hero rays */
+document.getElementById("rays").innerHTML = Array.from({length:24},(_,i)=>`<path d="M0 0 L${Math.cos((i*15-1.5)*Math.PI/180)*900} ${Math.sin((i*15-1.5)*Math.PI/180)*900} L${Math.cos((i*15+1.5)*Math.PI/180)*900} ${Math.sin((i*15+1.5)*Math.PI/180)*900}Z" fill="#ff6b4a"/>`).join("");
+
+/* =========================================================
+   BRUSH STROKES, SCROLL REVEAL, COUNT-UP
+   ========================================================= */
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// tapered ink stroke: heavy press at the start, thinning out with a dry tail
+function brushPath(seed=1){
+  let r = seed*9301 % 233280; const rnd=()=> (r = (r*9301+49297)%233280)/233280;
+  const N=40, top=[], bot=[];
+  for(let i=0;i<=N;i++){
+    const t=i/N, x=2+t*296;
+    const press = Math.sin(Math.min(1,t*6)*Math.PI/2) * (1-.75*t**1.6);   // fast attack, long taper
+    const half = 2 + 7*press + (rnd()-.5)*1.4;
+    const yc = 12 + Math.sin(t*3.1+seed)*1.6;
+    top.push([x, yc-half]); bot.push([x, yc+half*(.8+rnd()*.3)]);
+  }
+  const pts=[...top,...bot.reverse()];
+  return "M"+pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" L")+"Z";
+}
+document.querySelectorAll(".brushpath").forEach(p=>p.setAttribute("d",brushPath(7)));
+document.querySelectorAll("section h2").forEach((h,i)=>{
+  h.insertAdjacentHTML("beforeend",`<svg class="brush" viewBox="0 0 300 24" preserveAspectRatio="none" aria-hidden="true"><path d="${brushPath(i+2)}" filter="url(#inkEdge)"/></svg>`);
+});
+const io = new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add("inview"); io.unobserve(e.target);} }),{threshold:.12});
+document.querySelectorAll("section").forEach(s=> reduceMotion ? s.classList.add("inview") : io.observe(s));
+
+// hero tiles count up once the intro reaches them
+document.querySelectorAll(".tile .n").forEach((el,i)=>{
+  const target=+el.dataset.n;
+  if(reduceMotion){ el.textContent=target; return; }
+  setTimeout(()=>{ const t0=performance.now(), dur=1200;
+    const step=()=>{ const now=performance.now(), k=Math.max(0,Math.min(1,(now-t0)/dur)), e=1-(1-k)**3; el.textContent=Math.round(target*e); if(k<1) requestAnimationFrame(step); };
+    requestAnimationFrame(step); setTimeout(()=>el.textContent=target, dur+400); }, 2300+i*150);
+});
+
+/* =========================================================
+   FALLING ROSE PETALS (behind the scroll panels, so they show in the margins)
+   ========================================================= */
+(function(){
+  const cv=document.getElementById("petals"), ctx=cv.getContext("2d"), btn=document.getElementById("petalToggle");
+  const COLORS=[["#e8475f","#a50d2b"],["#f27a8c","#c8203f"],["#d42a48","#7e0a20"],["#f59aa8","#d8455f"]];
+  const saved=localStorage.getItem("rs-petals");
+  let W,H,dpr,petals=[],on = saved ? saved==="on" : !reduceMotion, raf=null;
+  const COUNT=46;
+  function resize(){ dpr=devicePixelRatio||1; W=innerWidth; H=innerHeight; cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); }
+  function spawnX(){
+    const gutter=Math.max(70,(W-1150)/2);
+    return Math.random()<.5 ? Math.random()*gutter : W-Math.random()*gutter;
+  }
+  function make(y){ const c=COLORS[Math.floor(Math.random()*COLORS.length)];
+    return { x:spawnX(), y: y ?? -20-Math.random()*H, s:6+Math.random()*8, vy:.35+Math.random()*.7, sway:Math.random()*Math.PI*2, swaySpd:.008+Math.random()*.012,
+             rot:Math.random()*Math.PI*2, vr:(Math.random()-.5)*.02, flip:Math.random()*Math.PI*2, vf:.02+Math.random()*.03, c }; }
+  function drawPetal(p){
+    ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.scale(1, .35+.65*Math.abs(Math.cos(p.flip)));
+    const s=p.s, g=ctx.createLinearGradient(0,-s,0,s); g.addColorStop(0,p.c[0]); g.addColorStop(1,p.c[1]);
+    ctx.fillStyle=g; ctx.globalAlpha=.9;
+    ctx.beginPath(); ctx.moveTo(0,s);
+    ctx.bezierCurveTo(-s*1.05,s*.45,-s*.95,-s*.85,-s*.2,-s*.95);   // rounded rose-petal lobe
+    ctx.quadraticCurveTo(0,-s*.7,s*.2,-s*.95);                      // small notch at the top
+    ctx.bezierCurveTo(s*.95,-s*.85,s*1.05,s*.45,0,s);
+    ctx.fill();
+    ctx.globalAlpha=.25; ctx.strokeStyle="#fff"; ctx.lineWidth=.8; ctx.beginPath(); ctx.moveTo(0,s*.8); ctx.quadraticCurveTo(s*.1,0,0,-s*.6); ctx.stroke();
+    ctx.restore();
+  }
+  function tick(){
+    ctx.clearRect(0,0,W,H);
+    for(const p of petals){
+      p.sway+=p.swaySpd; p.y+=p.vy; p.x+=Math.sin(p.sway)*.6; p.rot+=p.vr; p.flip+=p.vf;
+      if(p.y>H+20) Object.assign(p, make(-20));
+      drawPetal(p);
+    }
+    raf=requestAnimationFrame(tick);
+  }
+  function set(v){ on=v; localStorage.setItem("rs-petals",on?"on":"off"); btn.textContent=`🌹 Petals: ${on?"on":"off"}`;
+    if(on && !raf){ petals=Array.from({length:COUNT},()=>make(Math.random()*H)); tick(); }
+    if(!on && raf){ cancelAnimationFrame(raf); raf=null; ctx.clearRect(0,0,W,H); } }
+  addEventListener("resize",()=>{ resize(); petals.forEach(p=>p.x=spawnX()); });
+  btn.onclick=()=>set(!on);
+  resize(); set(on);
+})();
+
+/* =========================================================
+   HONOR TRACK + TIER LEGEND
+   ========================================================= */
+function renderHonor(){
+  const regs = players.filter(p=>!p.prov);
+  const STEP=5, lo=Math.floor((Math.min(...regs.map(p=>p.elo))-6)/STEP)*STEP, hi=Math.ceil((Math.max(...regs.map(p=>p.elo))+6)/STEP)*STEP;
+  const n=(hi-lo)/STEP+1, sp=30, W=760, top=10, H=top+n*sp+10, tx=120;
+  const yOf = v => top + sp/2 + (hi - v)/STEP*sp;   // space centres sit half a space inside the bands
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Honor track">`;
+  // tier bands
+  // band edges fall halfway between spaces, so neighbouring bands meet cleanly
+  const edge = v => yOf(v - STEP/2);
+  const bands=[["daimyo",Infinity,1520],["samurai",1520,1500],["ashigaru",1500,1480],["peasant",1480,-Infinity]];
+  bands.forEach(([k,a,b])=>{
+    const t=TIER[k], y1=Math.max(top-4, a===Infinity?top-4:edge(a)), y2=Math.min(H-6, b===-Infinity?H-6:edge(b));
+    if(y2<=y1) return;
+    s+=`<rect x="8" y="${y1}" width="${W-16}" height="${y2-y1}" rx="8" fill="${t.color}" opacity=".10"/>`;
+    s+=`<text x="20" y="${(y1+y2)/2+5}" font-size="14" font-weight="700" fill="${t.color}" font-family="Yu Mincho,Noto Serif JP,serif">${t.kanji} ${t.name}</text>`;
+  });
+  // the track: carved wooden spaces
+  s+=`<rect x="${tx-6}" y="${top-2}" width="52" height="${n*sp+4}" rx="10" fill="#6b4a2b" filter="url(#brush)"/>`;
+  for(let i=0;i<n;i++){ const v=hi-i*STEP, y=yOf(v);
+    s+=`<rect x="${tx}" y="${y-sp/2+3}" width="40" height="${sp-6}" rx="5" fill="#e9d6b0" stroke="#4a321c" stroke-width="1"/>`;
+    s+=`<text class="cell" x="${tx+20}" y="${y+4}" text-anchor="middle" font-size="11" fill="#4a321c" font-weight="${v%20===0?700:400}">${v}</text>`; }
+  // markers, stacked sideways when they share a space
+  const slots={};
+  regs.forEach(p=>{
+    // floor so a marker never sits in a higher tier than its rating
+    const v=Math.floor(p.elo/STEP)*STEP, k=v; const i=(slots[k]=(slots[k]||0)+1)-1;
+    const x=tx+60+i*150, y=yOf(v);
+    s+=`<g class="hmark" data-n="${p.name}">${i===0?`<line x1="${tx+42}" x2="${x}" y1="${y}" y2="${y}" stroke="#8a8279" stroke-dasharray="2 3"/>`:""}`;
+    s+=`<g transform="translate(${x},${y-13})">${mon(p.favClan,26)}</g>`;
+    s+=`<text x="${x+32}" y="${y+5}" font-size="13.5" font-weight="700" fill="#1d1a16">${p.name}${p.tier.key==="shogun"?" 👑":""}<tspan dx="6" font-size="12" font-weight="400" fill="#8a8279">${Math.round(p.elo)}</tspan></text></g>`;
+  });
+  s+=`</svg>`;
+  document.getElementById("honorTrack").innerHTML=s;
+
+  const ronin = players.filter(p=>p.prov).map(p=>p.name);
+  document.getElementById("tierLegend").innerHTML = TIERS.map(t=>{
+    const who = t.key==="ronin" ? ronin : players.filter(p=>p.tier===t).map(p=>p.name);
+    return `<div class="tier">${seal(t,false)}<div><b class="serif">${t.name}</b><span>${t.desc}</span>${who.length?`<span style="display:block;margin-top:2px;color:var(--ink)"><b style="display:inline;font-size:12.5px">Holders:</b> ${who.join(", ")}</span>`:""}</div></div>`;
+  }).join("");
+}
+renderHonor();
+
+/* =========================================================
+   CLAN MATCHMAKER
+   ========================================================= */
+(function(){
+  const ALL_CLANS=Object.keys(CLAN_COLORS);
+  const overall={}; ALL_CLANS.forEach(c=>overall[c]={rel:[],wins:0,plays:0});
+  const per={};
+  GAMES.forEach(g=>g.rows.forEach(r=>{
+    if(!r.clan) return;
+    const o=overall[r.clan]; o.plays++; if(r.place===1) o.wins++; if(r.rel!=null) o.rel.push(r.rel);
+    const pc=(per[r.name]??={})[r.clan]??={rel:[],wins:0,plays:0,places:[]}; pc.plays++; if(r.place===1) pc.wins++; if(r.rel!=null){ pc.rel.push(r.rel); pc.places.push(r.place); }
+  }));
+  const oAvg=c=>overall[c].rel.length?mean(overall[c].rel)*100:null;
+  const line=(k,clan,stat)=>`<div class="mline"><span class="k">${k}</span>${mon(clan,24)}<span class="v"><b>${clan}</b><br><span class="s">${stat}</span></span></div>`;
+  const regs=players.filter(p=>!p.prov);
+  document.getElementById("matchmaker").innerHTML = regs.map(p=>{
+    const mine=Object.entries(per[p.name]||{}).map(([c,v])=>({c,plays:v.plays,wins:v.wins,rate:v.wins/v.plays,place:v.places.length?mean(v.places):null,avg:v.rel.length?mean(v.rel)*100:null})).filter(x=>x.avg!=null);
+    // rank by results first: win rate, then more wins, then average place, then score vs table
+    mine.sort((a,b)=>b.rate-a.rate || b.wins-a.wins || a.place-b.place || b.avg-a.avg);
+    const best=mine[0], worst=mine.length>1?mine[mine.length-1]:null;
+    const tried=new Set(Object.keys(per[p.name]||{}));
+    const untried=ALL_CLANS.filter(c=>!tried.has(c)&&oAvg(c)!=null).sort((a,b)=>oAvg(b)-oAvg(a));
+    const fmt=x=>`${x.wins}W in ${x.plays} play${x.plays>1?"s":""} · avg place ${x.place.toFixed(1)} · ${x.avg.toFixed(0)}% of table`;
+    return `<div class="mcard"><h4 class="serif">${seal(p.tier)}${p.name}</h4>
+      ${best?line("Best",best.c,fmt(best)):""}
+      ${worst?line("Avoid",worst.c,fmt(worst)):""}
+      ${untried.length?line("Try next",untried[0],`Untried · clan averages ${oAvg(untried[0]).toFixed(0)}% overall`):`<div class="mline"><span class="k">Try next</span><span class="v s">Has played every clan!</span></div>`}
+    </div>`;
+  }).join("");
+})();
+
+/* =========================================================
+   NEMESIS & PREY
+   ========================================================= */
+(function(){
+  const rec={}; // rec[a][b] = {above: times a finished above b, below, met}
+  const add=(a,b,res)=>{ const r=((rec[a]??={})[b]??={above:0,below:0,met:0}); r.met++; if(res>0) r.above++; else if(res<0) r.below++; };
+  GAMES.forEach(g=>{
+    for(const a of g.rows) for(const b of g.rows){ if(a===b) continue;
+      if(!g.partial) add(a.name,b.name, Math.sign(a.score-b.score));
+      else if(g.partial==="winnerOnly" && (a.place===1||b.place===1)) add(a.name,b.name, a.place===1?1:-1);
+    }
+  });
+  const pick=(name,key)=>{ const opp=Object.entries(rec[name]||{}).filter(([,r])=>r.met>=2&&r[key]>0);
+    opp.sort((x,y)=> y[1][key]-x[1][key] || y[1][key]/y[1].met - x[1][key]/x[1].met || P[y[0]].elo-P[x[0]].elo); return opp[0]; };
+  const regs=players.filter(p=>!p.prov);
+  document.getElementById("rivals").innerHTML = regs.map(p=>{
+    const nem=pick(p.name,"below"), prey=pick(p.name,"above");
+    const row=(icon,label,o,key)=> o ? `<div class="rline"><span class="ic">${icon}</span><div><b>${label}: ${o[0]}</b><small>${key==="below"?`Finished above ${p.name}`:`${p.name} finished above them`} ${o[1][key]} of ${o[1].met} times</small></div></div>`
+      : `<div class="rline"><span class="ic">${icon}</span><div><b>${label}: none</b><small>${key==="below"?"No one has finished above them twice":"Hasn't finished above anyone twice"}</small></div></div>`;
+    return `<div class="rcard"><h4 class="serif">${seal(p.tier)}${p.name}</h4>${row(ICONS.oni,"Nemesis",nem,"below")}${row(ICONS.katana,"Prey",prey,"above")}</div>`;
+  }).join("");
+})();
+
+/* =========================================================
+   INFO TOOLTIPS (Kami / card sets)
+   ========================================================= */
+(function(){
+  const tip=document.getElementById("infoTip");
+  const show=el=>{ tip.innerHTML=el.dataset.info; tip.style.opacity=1; const r=el.getBoundingClientRect();
+    let x=r.left, y=r.bottom+8; tip.style.left="0px"; tip.style.top="0px";
+    const w=tip.offsetWidth, h=tip.offsetHeight; if(x+w>innerWidth-10) x=innerWidth-w-10; if(y+h>innerHeight-10) y=r.top-h-8;
+    tip.style.left=x+"px"; tip.style.top=y+"px"; };
+  const hide=()=>tip.style.opacity=0;
+  document.addEventListener("mouseover",e=>{ const el=e.target.closest("[data-info]"); el?show(el):hide(); });
+  document.addEventListener("focusin",e=>{ const el=e.target.closest("[data-info]"); if(el) show(el); });
+  document.addEventListener("focusout",hide);
+  addEventListener("scroll",hide,{passive:true});
+})();
+
+/* =========================================================
+   DAY / NIGHT THEME + LANTERNS + STARS
+   ========================================================= */
+(function(){
+  const LANTERN=`<svg viewBox="0 0 30 58" aria-hidden="true"><line x1="15" y1="0" x2="15" y2="10" stroke="#9d9384" stroke-width="1.5"/>
+    <circle class="glow" cx="15" cy="32" r="22" fill="#ffb347" opacity=".25"/>
+    <rect x="9" y="9" width="12" height="4" rx="1" fill="#1d1a16"/>
+    <ellipse class="glow" cx="15" cy="31" rx="11" ry="16" fill="#e8473b"/>
+    <ellipse cx="15" cy="31" rx="7" ry="12" fill="#ffcc66" opacity=".55" class="glow"/>
+    <path d="M5 25h20M5 37h20" stroke="#8e0b20" stroke-width="1"/>
+    <rect x="9" y="46" width="12" height="4" rx="1" fill="#1d1a16"/><line x1="15" y1="50" x2="15" y2="57" stroke="#e8473b" stroke-width="2"/></svg>`;
+  document.querySelectorAll("main section").forEach((s,i)=>{
+    s.insertAdjacentHTML("beforeend",`<span class="lantern">${LANTERN}</span>`);
+    if(i%2===0) s.insertAdjacentHTML("beforeend",`<span class="lantern l2">${LANTERN}</span>`);
+  });
+  document.getElementById("stars").innerHTML = Array.from({length:70},()=>{ const x=Math.random()*1200, y=Math.random()*260, r=Math.random()*1.4+.3;
+    return `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(1)}" opacity="${(.3+Math.random()*.7).toFixed(2)}"/>`; }).join("");
+  const btn=document.getElementById("themeToggle");
+  function apply(t){
+    document.documentElement.dataset.theme=t;
+    btn.textContent = t==="night" ? "☀️ Day" : "🌙 Night";
+    paintSeries(); renderLegend(); eloChart();
+  }
+  btn.onclick=()=>{ const t=isNight()?"day":"night"; localStorage.setItem("rs-theme-choice",t); apply(t); };  // only an explicit click is remembered
+  apply(document.documentElement.dataset.theme==="night"?"night":"day");
+})();
+
+/* =========================================================
+   RECORD A BATTLE (form → localStorage → page refresh)
+   ========================================================= */
+(function(){
+  const form=document.getElementById("battleForm"), rowsEl=document.getElementById("pRows"), msg=document.getElementById("formMsg");
+  const CLANS=Object.keys(CLAN_COLORS);
+  const KAMI=Object.keys(KAMI_INFO);
+  const MONSTERS=["Monster pack","Lucky Monsters","S&M Monsters"];
+  const CARDSETS=["Standard","Foreign Gods","Seven Gods pack","Kami (mountain)","Teapot","Gate","Arrow","Horse","Stamped"];
+  const knownNames=[...new Set(Object.keys(P))].sort();
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+  // shared suggestion lists
+  form.insertAdjacentHTML("beforeend",
+    `<datalist id="nameList">${knownNames.map(n=>`<option value="${esc(n)}">`).join("")}</datalist>`+
+    `<datalist id="kamiList">${KAMI.map(k=>`<option value="${k}">`).join("")}</datalist>`);
+
+  function addRow(v={}){
+    const r=document.createElement("div"); r.className="prow";
+    r.innerHTML=`<span class="pn"></span>
+      <input type="text" name="pname" list="nameList" placeholder="Name" autocomplete="off" value="${esc(v.name||"")}" aria-label="Name">
+      <input type="number" name="pscore" placeholder="Points" min="0" max="300" step="1" inputmode="numeric" value="${v.score??""}" aria-label="Points">
+      <select name="pclan" aria-label="Clan"><option value="">Clan…</option>${CLANS.map(c=>`<option ${v.clan===c?"selected":""}>${c}</option>`).join("")}</select>
+      <span class="bstep"><button type="button" class="bm" aria-label="One fewer betrayal" title="Undo one">−</button><button type="button" class="bt" data-n="0" title="Tap each time they play the Betrayal tile" aria-label="Betrayals: 0">🗡 0</button></span>
+      <button type="button" class="rm" title="Remove this warlord" aria-label="Remove">✕</button>`;
+    r.querySelector(".rm").onclick=()=>{ if(rowsEl.children.length>3){ r.remove(); renumber(); } };
+    // betrayal tap counter: tap 🗡 to add one, − to take one back
+    const bt=r.querySelector(".bt"), setB=n=>{ n=Math.max(0,Math.min(20,n)); bt.dataset.n=n; bt.textContent=`🗡 ${n}`; bt.classList.toggle("on",n>0); bt.setAttribute("aria-label",`Betrayals: ${n}`); };
+    bt.onclick=()=>{ setB(+bt.dataset.n+1); bt.classList.remove("pop"); void bt.offsetWidth; bt.classList.add("pop"); };
+    r.querySelector(".bm").onclick=()=>setB(+bt.dataset.n-1);
+    r.querySelector('[name=pscore]').addEventListener("input",renumber);
+    rowsEl.appendChild(r); renumber();
+  }
+  // show the current leader as the scores go in
+  function renumber(){
+    const rows=[...rowsEl.children], sc=rows.map(r=>parseFloat(r.querySelector('[name=pscore]').value));
+    const max=Math.max(...sc.filter(x=>!isNaN(x)));
+    rows.forEach((r,i)=>{ const pn=r.querySelector(".pn"); const lead=!isNaN(sc[i])&&sc[i]===max; pn.textContent=lead?"勝":i+1; pn.classList.toggle("lead",lead); pn.title=lead?"Currently winning":""; });
+    document.getElementById("addRow").style.display = rows.length>=6 ? "none" : "";
+  }
+  document.getElementById("addRow").onclick=()=>{ if(rowsEl.children.length<6) addRow(); };
+
+  document.getElementById("kamiInputs").innerHTML=[1,2,3,4].map(i=>`<input type="text" name="kami" list="kamiList" placeholder="Kami ${i}" autocomplete="off" aria-label="Kami ${i}">`).join("");
+  const checks=(id,list,name)=>document.getElementById(id).innerHTML=list.map(c=>`<label><input type="checkbox" name="${name}" value="${esc(c)}">${esc(c)}</label>`).join("");
+  checks("monsterChecks",MONSTERS,"monster"); checks("cardChecks",CARDSETS,"cardset");
+
+  // optional board photo: shrunk in the browser before it's stored
+  let pendingPhoto=null;
+  const photoIn=form.querySelector('[name=photo]'), photoPrev=document.getElementById("photoPrev");
+  photoIn.addEventListener("change",()=>{
+    const f=photoIn.files[0]; if(!f) return;
+    photoPrev.textContent="Shrinking photo…";
+    photoFromFile(f).then(url=>{ pendingPhoto=url; photoPrev.innerHTML=`<img src="${url}" alt="Board photo preview"><span>${Math.round(url.length*0.75/1024)} KB</span><button type="button" class="x" id="photoClear" aria-label="Remove photo">✕</button>`;
+      document.getElementById("photoClear").onclick=()=>{ pendingPhoto=null; photoPrev.innerHTML=""; photoIn.value=""; }; })
+      .catch(()=>{ pendingPhoto=null; photoPrev.textContent="That file couldn't be read as a photo."; });
+  });
+  function resetForm(){ rowsEl.innerHTML=""; for(let i=0;i<5;i++) addRow(); const t=new Date(); form.date.value=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`; msg.className="fmsg"; msg.innerHTML=""; pendingPhoto=null; photoPrev.innerHTML=""; photoIn.value=""; }
+  form.addEventListener("reset",()=>setTimeout(resetForm,0));
+  resetForm();
+
+  // match typed names to existing players ignoring case/spaces, so "tom " becomes "Tom"
+  const matchName=n=>{ const t=n.trim().replace(/\s+/g," "); const hit=knownNames.find(k=>k.toLowerCase()===t.toLowerCase()); return hit||t; };
+  const matchKami=k=>{ const t=k.trim(); return KAMI.find(x=>x.toLowerCase()===t.toLowerCase())||t; };
+
+  form.addEventListener("submit",ev=>{
+    ev.preventDefault();
+    form.querySelectorAll(".bad").forEach(e=>e.classList.remove("bad"));
+    const errs=[], bad=el=>el.classList.add("bad");
+    const results=[];
+    [...rowsEl.children].forEach(r=>{
+      const ni=r.querySelector('[name=pname]'), si=r.querySelector('[name=pscore]'), ci=r.querySelector('[name=pclan]');
+      const name=matchName(ni.value), sRaw=si.value.trim(), clan=ci.value||null;
+      if(!name && !sRaw && !clan) return;                         // fully empty row: ignore
+      if(!name){ bad(ni); errs.push("Every warlord with points needs a name."); }
+      const score=Number(sRaw);
+      if(sRaw===""||!Number.isInteger(score)||score<0||score>300){ bad(si); errs.push(`${name||"A warlord"} needs whole-number points (0–300).`); }
+      results.push({name,score,clan,ni,ci,betray:+r.querySelector(".bt").dataset.n||0});
+    });
+    if(results.length<3) errs.push("A battle needs at least 3 warlords.");
+    const dupe=(arr,key,label)=>{ const seen={}; arr.forEach(x=>{ const k=key(x); if(!k) return; if(seen[k]){ errs.push(label(x)); bad(x.el||x.ni); bad(seen[k].el||seen[k].ni);} else seen[k]=x; }); };
+    dupe(results,x=>x.name&&x.name.toLowerCase(),x=>`${x.name} is listed twice.`);
+    dupe(results.map(x=>({...x,el:x.ci})),x=>x.clan,x=>`Two warlords can't both play the ${x.clan} Clan.`);
+    const kamiEls=[...form.querySelectorAll('[name=kami]')], kami=kamiEls.map(e=>({k:matchKami(e.value),el:e})).filter(x=>x.k);
+    dupe(kami,x=>x.k.toLowerCase(),x=>`${x.k} is picked twice.`);
+    if(!form.date.value){ bad(form.date); errs.push("Pick the date of the battle."); }
+    if(errs.length){ msg.className="fmsg err"; msg.innerHTML=`<b>Fix these first:</b><ul>${[...new Set(errs)].map(e=>`<li>${esc(e)}</li>`).join("")}</ul>`; return; }
+
+    const [y,m,d]=form.date.value.split("-").map(Number);
+    const cards=[...form.querySelectorAll('[name=monster]:checked,[name=cardset]:checked')].map(c=>c.value)
+      .concat(form.otherCards.value.split(",").map(s=>s.trim()).filter(Boolean));
+    const battle={
+      id:"b"+Date.now().toString(36),
+      date:`${m}/${d}/${String(y).slice(-2)}`,
+      results: results.sort((a,b)=>b.score-a.score).map(r=>[r.name,r.score,r.clan,r.betray]),
+      kami: kami.map(x=>x.k), cards,
+    };
+    const note=plain(form.note.value); if(note) battle.note=note;
+    battle.results=battle.results.map(([n,s,c,bt])=>[plain(n),s,c,bt]); battle.kami=battle.kami.map(plain); battle.cards=battle.cards.map(plain).filter(Boolean);
+    if(pendingPhoto) battle.photo=pendingPhoto;
+    if(!saveWorking([...GAMES, battle])){ msg.className="fmsg err"; msg.textContent="This browser is out of storage space (photos take the most room). Remove the photo or some older photos, or download the updated page first."; return; }
+    location.hash="battle-"+(GAMES.length+1); location.reload();
+  });
+})();
+
+/* =========================================================
+   SHARED: download updated page, backups, "unsaved changes" banner
+   ========================================================= */
+// shrink a photo to at most 1400px on its long edge and re-encode as JPEG (aim: under ~400 KB)
+function photoFromFile(file){
+  return new Promise((resolve,reject)=>{
+    if(!file || !/^image\//.test(file.type)) return reject(new Error("not an image"));
+    const img=new Image(), url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      const MAX=1400, k=Math.min(1, MAX/Math.max(img.naturalWidth,img.naturalHeight));
+      const c=document.createElement("canvas"); c.width=Math.round(img.naturalWidth*k); c.height=Math.round(img.naturalHeight*k);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+      let q=0.75, out=c.toDataURL("image/jpeg",q);
+      while(out.length>550000 && q>0.4){ q-=0.1; out=c.toDataURL("image/jpeg",q); }
+      resolve(out);
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error("unreadable")); };
+    img.src=url;
+  });
+}
+// full-size photo viewer
+(function(){
+  const box=document.createElement("div"); box.className="lightbox"; box.hidden=true; box.setAttribute("role","dialog"); box.setAttribute("aria-label","Battle photo");
+  box.innerHTML=`<img alt=""><button type="button" class="lbx" aria-label="Close">✕</button>`; document.body.appendChild(box);
+  const close=()=>{ box.hidden=true; box.querySelector("img").src=""; };
+  document.addEventListener("click",e=>{
+    const t=e.target.closest(".ph[data-photo]");
+    if(t){ const g=GAMES[+t.dataset.photo-1]; if(g&&g.photo){ box.querySelector("img").src=g.photo; box.querySelector("img").alt=`Battle ${g.n} board`; box.hidden=false; box.querySelector(".lbx").focus(); } return; }
+    if(!box.hidden && (e.target===box || e.target.closest(".lbx"))) close();
+  });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !box.hidden) close(); });
+})();
+function downloadFile(name,text,type){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},500); }
+function downloadUpdatedPage(){
+  const all=GAMES.map((g,i)=>({ n:i+1, ...cleanBattle(g) }));
+  const json="[\n"+all.map(g=>"  "+JSON.stringify(g).replace(/</g,"\\u003c")).join(",\n")+"\n]\n";
+  const html=PAGE_SOURCE
+    .replace(/(<html[^>]*?)\s+data-theme="[^"]*"/, "$1")
+    .replace(/(<script type="application\/json" id="battle-data">)[\s\S]*?(<\/script>)/, (_,a,b)=>a+"\n"+json+b);
+  downloadFile("index.html", html, "text/html");
+}
+function saveBackup(){ downloadFile("rising-sun-battles.json", JSON.stringify(GAMES.map(cleanBattle),null,2), "application/json"); }
+function loadBackup(file, onError){
+  file.text().then(t=>{
+    let list; try{ list=JSON.parse(t); if(list && Array.isArray(list.games)) list=list.games; }catch(e){ list=null; }
+    if(!Array.isArray(list) || !list.length || !list.every(g=>g && Array.isArray(g.results))){ onError("That file isn't a battle backup from this page."); return; }
+    if(!confirm(`Replace the battles on this page with the ${list.length} battles in the backup?`)) return;
+    saveWorking(list); location.reload();
+  });
+}
+(function(){
+  const bar=document.getElementById("pendingBar");
+  if(!HAS_CHANGES){ bar.hidden=true; return; }
+  const builtinKeys=new Set(BUILTIN_GAMES.map(g=>JSON.stringify(cleanBattle(g))));
+  const added=GAMES.filter(g=>g.saved).length;
+  const changed=GAMES.filter(g=>!g.saved && !builtinKeys.has(JSON.stringify(cleanBattle(g)))).length;
+  const removed=Math.max(0, BUILTIN_GAMES.length - GAMES.filter(g=>!g.saved).length);
+  const parts=[added&&`${added} new battle${added>1?"s":""}`, changed&&`${changed} edited`, removed&&`${removed} deleted`].filter(Boolean);
+  bar.hidden=false;
+  bar.innerHTML=`<span>✎ <b>Not saved to the file yet:</b> ${parts.join(", ")||"edits"}. Download the updated page and replace the old <code>index.html</code> to keep ${added+changed+removed>1?"them":"it"}.</span>
+    <span class="pb"><button type="button" class="primary sm" id="pbDownload">⬇ Download updated page</button><button type="button" class="ghost" id="pbUndo">Undo all</button></span>`;
+  document.getElementById("pbDownload").onclick=()=>{ downloadUpdatedPage(); bar.querySelector("span").innerHTML="✔ Downloaded <b>index.html</b>. Replace the old file with it, then share that copy."; };
+  document.getElementById("pbUndo").onclick=()=>{ if(confirm("Throw away every new battle and edit that isn't in the file? This can't be undone.")){ clearWorking(); location.reload(); } };
+})();
+
+/* =========================================================
+   SCREENS: #stats  #record  #ledger
+   ========================================================= */
+(function(){
+  const SCREENS=["stats","record","ledger"];
+  const hero=document.querySelector("header.hero");
+  function route(){
+    const h=location.hash.slice(1), scr=SCREENS.includes(h)?h:"stats";
+    document.querySelectorAll(".screen").forEach(s=>s.hidden = s.dataset.screen!==scr);
+    hero.hidden = scr!=="stats";
+    document.querySelectorAll(".tabs .tab").forEach(t=>t.classList.toggle("on", t.dataset.tab===scr));
+    document.title = {stats:"Rising Sun — The Scroll of Honor", record:"Record a Battle — Rising Sun", ledger:"The Ledger — Rising Sun"}[scr];
+    if(scr==="stats") redrawBars();   // charts drawn while hidden had no width to measure
+    if(scr!=="stats"){ window.scrollTo(0,0); document.querySelectorAll(`.screen[data-screen="${scr}"] section`).forEach(s=>s.classList.add("inview")); }
+    if(h.startsWith("battle-")){ const t=document.getElementById(h); if(t){ t.closest("section")?.classList.add("inview"); setTimeout(()=>t.scrollIntoView({behavior:"smooth",block:"center"}),300); } }
+  }
+  addEventListener("hashchange",route); route();
+  // phones: redraw bar charts at the new width after rotating or resizing
+  let lastW=innerWidth, t=null;
+  addEventListener("resize",()=>{ clearTimeout(t); t=setTimeout(()=>{ if(Math.abs(innerWidth-lastW)>30){ lastW=innerWidth; redrawBars(); } },200); });
+})();
+
+/* =========================================================
+   THE LEDGER: raw, editable battle data
+   ========================================================= */
+(function(){
+  const table=document.getElementById("ledgerTable"), msg=document.getElementById("ledgerMsg");
+  const saveBtn=document.getElementById("ledgerSave"), discardBtn=document.getElementById("ledgerDiscard");
+  const filterEl=document.getElementById("ledgerFilter");
+  const CLANS=Object.keys(CLAN_COLORS);
+  const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  let draft=GAMES.map(cleanBattle), dirty=false;
+
+  const placeOf=(b,i)=>{ const s=b.results[i][1]; if(s==null) return i===0&&b.partial?1:"–"; return 1+b.results.filter(r=>r[1]!=null&&r[1]>s).length; };
+  const haystack=b=>[b.date,b.note,...b.kami,...b.cards,...b.results.flat()].join(" ").toLowerCase();
+
+  function render(){
+    const q=filterEl.value.trim().toLowerCase();
+    let shown=0, rowsShown=0;
+    let h=`<thead><tr><th class="l">Battle</th><th class="l">Date</th><th>Place</th><th class="l">Warlord</th><th>Points</th><th class="l">Clan</th><th title="Betrayal tiles played. Blank = not tracked">🗡</th><th class="l">Kami</th><th class="l">Cards &amp; monsters</th><th class="l">Notes</th><th></th></tr></thead>`;
+    draft.forEach((b,bi)=>{
+      if(q && !haystack(b).includes(q)) return;
+      shown++; const n=b.results.length||1; rowsShown+=b.results.length;
+      h+=`<tbody class="lb${bi%2?" alt":""}" data-b="${bi}">`;
+      (b.results.length?b.results:[["",null,null]]).forEach((r,ri)=>{
+        h+=`<tr data-r="${ri}">`;
+        if(ri===0){
+          h+=`<td class="l bn" rowspan="${n}"><b>${bi+1}</b>${b.partial?`<span class="partial" title="${b.partial==="winnerOnly"?"Only the winner's score was recorded":"Only the winner was recorded"}">partial</span>`:""}</td>`;
+          h+=`<td class="l" rowspan="${n}"><input class="c date" data-f="date" value="${esc(b.date)}" placeholder="m/d/yy" aria-label="Date"></td>`;
+        }
+        h+=`<td class="pl">${b.results.length?placeOf(b,ri):""}</td>`;
+        h+=`<td class="l"><input class="c" data-f="name" list="nameList" value="${esc(r[0])}" aria-label="Warlord"></td>`;
+        h+=`<td><input class="c num" data-f="score" inputmode="numeric" value="${r[1]??""}" placeholder="?" aria-label="Points"></td>`;
+        h+=`<td class="l"><select class="c" data-f="clan" aria-label="Clan"><option value="">—</option>${CLANS.map(c=>`<option ${r[2]===c?"selected":""}>${c}</option>`).join("")}</select></td>`;
+        h+=`<td><input class="c num bt" data-f="betray" inputmode="numeric" value="${r[3]??""}" placeholder="–" aria-label="Betrayals" title="Betrayal tiles played (blank = not tracked)"></td>`;
+        if(ri===0){
+          h+=`<td class="l" rowspan="${n}"><textarea class="c" data-f="kami" rows="2" placeholder="Kami, comma separated" aria-label="Kami">${esc(b.kami.join(", "))}</textarea></td>`;
+          h+=`<td class="l" rowspan="${n}"><textarea class="c" data-f="cards" rows="2" placeholder="Card sets, comma separated" aria-label="Cards and monsters">${esc(b.cards.join(", "))}</textarea></td>`;
+          h+=`<td class="l" rowspan="${n}"><textarea class="c note" data-f="note" rows="2" placeholder="Notes" aria-label="Notes">${esc(b.note)}</textarea><div class="lph">${b.photo?`<img src="${b.photo}" alt="Battle ${bi+1} photo">`:""}<label class="x filelink">📷 ${b.photo?"Replace":"Add photo"}<input type="file" accept="image/*" data-photo-in hidden></label>${b.photo?`<button type="button" class="x danger" data-act="rmphoto">Remove</button>`:""}</div></td>`;
+        }
+        h+=`<td class="act">${b.results.length>1?`<button type="button" class="x" data-act="rmrow" title="Remove this warlord">✕</button>`:""}${ri===0?`<button type="button" class="x" data-act="addrow" title="Add a warlord">＋</button><button type="button" class="x danger" data-act="rmbattle" title="Delete this battle">🗑</button>`:""}</td>`;
+        h+=`</tr>`;
+      });
+      h+=`</tbody>`;
+    });
+    table.innerHTML=h;
+    document.getElementById("ledgerCount").textContent = `${shown} of ${draft.length} battles · ${rowsShown} results`;
+  }
+
+  function setDirty(){ dirty=true; saveBtn.disabled=false; discardBtn.disabled=false; msg.className="fmsg"; msg.textContent="Unsaved edits. Press Save changes to apply them."; }
+  const toList=s=>s.split(",").map(x=>x.trim()).filter(Boolean);
+
+  table.addEventListener("input",ev=>{
+    const el=ev.target, tb=el.closest("tbody"), tr=el.closest("tr"); if(!tb||!el.dataset.f) return;
+    const b=draft[+tb.dataset.b], f=el.dataset.f;
+    if(f==="date") b.date=el.value;
+    else if(f==="kami") b.kami=toList(el.value);
+    else if(f==="cards") b.cards=toList(el.value);
+    else if(f==="note") b.note=el.value;
+    else {
+      if(!b.results.length) b.results.push(["",null,null]);
+      const r=b.results[+tr.dataset.r];
+      if(f==="name") r[0]=el.value;
+      if(f==="clan") r[2]=el.value||null;
+      if(f==="score") r[1]=el.value.trim()===""?null:Number(el.value);
+      if(f==="betray"){ if(el.value.trim()==="") r.length=Math.min(r.length,3); else r[3]=Number(el.value); }
+    }
+    setDirty();
+  });
+  table.addEventListener("change",ev=>{ if(ev.target.dataset.f==="clan") ev.target.dispatchEvent(new Event("input",{bubbles:true})); });
+  table.addEventListener("click",ev=>{
+    const btn=ev.target.closest("[data-act]"); if(!btn) return;
+    const bi=+btn.closest("tbody").dataset.b, ri=+btn.closest("tr").dataset.r, b=draft[bi];
+    if(btn.dataset.act==="rmrow") b.results.splice(ri,1);
+    if(btn.dataset.act==="addrow") b.results.push(["",null,null]);
+    if(btn.dataset.act==="rmphoto") delete b.photo;
+    if(btn.dataset.act==="rmbattle"){ if(!confirm(`Delete battle ${bi+1}? (You can still Discard edits before saving.)`)) return; draft.splice(bi,1); }
+    setDirty(); render();
+  });
+  // photos: add / replace / remove from the ledger
+  table.addEventListener("change",ev=>{
+    const inp=ev.target; if(!inp.matches('input[type=file][data-photo-in]')) return;
+    const bi=+inp.closest("tbody").dataset.b, f=inp.files[0]; if(!f) return;
+    msg.className="fmsg"; msg.textContent="Shrinking photo…";
+    photoFromFile(f).then(url=>{ draft[bi].photo=url; setDirty(); render(); })
+      .catch(()=>{ msg.className="fmsg err"; msg.textContent="That file couldn't be read as a photo."; });
+  });
+  filterEl.addEventListener("input",render);
+
+  discardBtn.onclick=()=>{ draft=GAMES.map(cleanBattle); dirty=false; saveBtn.disabled=true; discardBtn.disabled=true; msg.className="fmsg"; msg.textContent=""; render(); };
+  saveBtn.onclick=()=>{
+    const errs=[];
+    draft.forEach((b,i)=>{
+      const L=`Battle ${i+1}`;
+      b.results=b.results.filter(r=>String(r[0]).trim()||r[1]!=null||r[2]);   // drop fully empty rows
+      if(!b.results.length) errs.push(`${L} has no warlords. Delete the battle instead.`);
+      if(!b.partial && b.results.length<3) errs.push(`${L} needs at least 3 warlords.`);
+      const names={}, clans={};
+      b.results.forEach(r=>{
+        const nm=String(r[0]).trim(); r[0]=nm;
+        if(!nm) errs.push(`${L}: a warlord is missing a name.`);
+        if(r[1]!=null && (!Number.isInteger(r[1])||r[1]<0||r[1]>300)) errs.push(`${L}: ${nm||"a warlord"} needs whole-number points (0–300).`);
+        if(r.length>3 && (!Number.isInteger(r[3])||r[3]<0||r[3]>20)) errs.push(`${L}: ${nm||"a warlord"}'s betrayals must be a whole number (0–20), or blank if not tracked.`);
+        if(r[1]==null && !b.partial) errs.push(`${L}: ${nm||"a warlord"} has no points. Only partial battles can have missing scores.`);
+        const k=nm.toLowerCase(); if(nm && names[k]) errs.push(`${L}: ${nm} is listed twice.`); names[k]=1;
+        if(r[2]){ if(clans[r[2]]) errs.push(`${L}: two warlords both play the ${r[2]} Clan.`); clans[r[2]]=1; }
+      });
+      const kk={}; b.kami.forEach(k=>{ const x=k.toLowerCase(); if(kk[x]) errs.push(`${L}: ${k} is listed twice in Kami.`); kk[x]=1; });
+      if(b.kami.length>4) errs.push(`${L}: a battle has at most 4 Kami.`);
+    });
+    if(errs.length){ msg.className="fmsg err"; msg.innerHTML=`<b>Fix these first:</b><ul>${[...new Set(errs)].map(e=>`<li>${esc(e)}</li>`).join("")}</ul>`; return; }
+    // keep each battle in finishing order (partial battles keep the recorded winner first)
+    draft.forEach(b=>{ if(!b.partial) b.results.sort((a,c)=>c[1]-a[1]); });
+    if(!saveWorking(draft)){ msg.className="fmsg err"; msg.textContent="This browser is out of storage space (photos take the most room). Remove a photo or download the updated page, then try again."; return; }
+    dirty=false; location.hash="ledger"; location.reload();
+  };
+
+  // CSV: one row per warlord per battle, opens in Excel / Google Sheets
+  document.getElementById("ledgerCsv").onclick=()=>{
+    const q=v=>{ const s=String(v??""); return /[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s; };
+    const lines=[["battle","date","place","player","points","clan","start_seat","betrayals","kami","cards","note"].join(",")];
+    GAMES.forEach(g=>g.rows.forEach(r=>lines.push([g.n,g.date||"",r.place??"",r.name,r.score??"",r.clan||"",r.seat??"",r.betray??"",g.kami.join("; "),g.cards.join("; "),g.note||""].map(q).join(","))));
+    downloadFile("rising-sun-battles.csv", lines.join("\r\n"), "text/csv");
+  };
+  // backups live with the raw data
+  document.querySelector("#ledgerSec .ltools").insertAdjacentHTML("beforeend",
+    `<button type="button" class="ghost" id="ledgerBackup">Save backup</button><label class="ghost filebtn">Load backup<input type="file" id="ledgerLoad" accept=".json,application/json" hidden></label>`);
+  document.getElementById("ledgerBackup").onclick=saveBackup;
+  document.getElementById("ledgerLoad").onchange=ev=>{ const f=ev.target.files[0]; if(f) loadBackup(f, e=>{ msg.className="fmsg err"; msg.textContent=e; }); };
+  addEventListener("beforeunload",ev=>{ if(dirty){ ev.preventDefault(); ev.returnValue=""; } });
+  render();
+})();
+</script>
+</body>
+</html>
