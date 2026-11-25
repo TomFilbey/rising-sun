@@ -77,6 +77,8 @@
   @keyframes paint{to{clip-path:inset(0 0 0 0)}}
 
   /* ---------- petals ---------- */
+  #landscape{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}   /* scenery sits under the petals and the content */
+  #landscape .lsc{position:absolute;inset:0;background-repeat:repeat;will-change:background-position}
   #petals{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:0}
   header.hero,main,footer{position:relative;z-index:1}
   #petalToggle{position:fixed;right:16px;bottom:16px;z-index:10;font:inherit;font-size:13px;border:1px solid var(--line);background:#fffaf0;color:var(--ink-2);padding:6px 12px;border-radius:20px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)}
@@ -634,6 +636,7 @@
     </filter>
   </defs>
 </svg>
+<div id="landscape" aria-hidden="true"></div>
 <canvas id="petals" aria-hidden="true"></canvas>
 <button id="petalToggle" type="button">🌹 Petals: on</button>
 <button id="themeToggle" type="button">🌙 Night</button>
@@ -2442,6 +2445,112 @@ function loadBackup(file, onError){
   document.getElementById("ledgerLoad").onchange=ev=>{ const f=ev.target.files[0]; if(f) loadBackup(f, e=>{ msg.className="fmsg err"; msg.textContent=e; }); };
   addEventListener("beforeunload",ev=>{ if(dirty){ ev.preventDefault(); ev.returnValue=""; } });
   render();
+})();
+/* =========================================================
+   SCROLLING COUNTRYSIDE: three parallax layers behind the petals
+   Each layer is a repeating SVG tile; scrolling slides the layers at different speeds.
+   ========================================================= */
+(function(){
+  const host=document.getElementById("landscape"); if(!host) return;
+  const W=1400;
+  // tiny deterministic random so the scenery is the same on every load
+  let seed=7; const rnd=()=>{ seed=(seed*9301+49297)%233280; return seed/233280; };
+  // ---- Sengoku-era scenery pieces (x,y = where the piece meets the ground) ----
+  // minka: a farmhouse on a stone footing, shoji screens, a steep thatched hip-and-gable roof
+  const minka=(x,y,s,c,lit=true)=>{
+    const w=80*s, h=22*s, b=y-5*s, t=b-h, sh=lit?c.shoji:c.shojiDim;
+    let o=`<rect x="${x-3*s}" y="${b}" width="${w+6*s}" height="${5*s}" fill="${c.stone}"/>`+
+          `<rect x="${x}" y="${t}" width="${w}" height="${h}" fill="${c.wood}"/>`;
+    for(let i=0;i<4;i++){ const px=x+w*(.04+i*.24), pw=w*.2, ph=h-5*s;
+      o+=`<rect x="${px}" y="${t+3*s}" width="${pw}" height="${ph}" fill="${sh}"/>`+
+         `<path d="M${px+pw/3} ${t+3*s}v${ph}M${px+pw*2/3} ${t+3*s}v${ph}M${px} ${t+3*s+ph/2}h${pw}" stroke="${c.wood}" stroke-width="${.7*s}"/>`; }
+    const e=t+4*s, ov=15*s, rh=24*s, gh=16*s;
+    o+=`<path d="M${x-ov} ${e} L${x+w*.1} ${e-rh} L${x+w*.3} ${e-rh-gh} L${x+w*.7} ${e-rh-gh} L${x+w*.9} ${e-rh} L${x+w+ov} ${e}Z" fill="${c.roof}"/>`+
+       `<path d="M${x-ov} ${e} L${x+w+ov} ${e} L${x+w+ov-3*s} ${e-5*s} L${x-ov+3*s} ${e-5*s}Z" fill="${c.roofEdge}"/>`+
+       `<rect x="${x+w*.27}" y="${e-rh-gh-3*s}" width="${w*.46}" height="${4*s}" fill="${c.roofEdge}"/>`;
+    for(let i=0;i<6;i++) o+=`<rect x="${x+w*(.3+i*.08)}" y="${e-rh-gh-6*s}" width="${2*s}" height="${8*s}" fill="${c.roofEdge}"/>`;   // ridge saddles
+    return o; };
+  // curved temple/castle roof with upswept corners
+  const eave=(cx,y,w,c)=>`<path d="M${cx-w} ${y-8} Q${cx-w*.8} ${y} ${cx-w*.62} ${y} L${cx+w*.62} ${y} Q${cx+w*.8} ${y} ${cx+w} ${y-8} L${cx+w*.55} ${y-16} L${cx-w*.55} ${y-16}Z" fill="${c.tile}"/>`;
+  // kura: white-plaster storehouse with a tiled roof
+  const kura=(x,y,s,c)=>{ const w=44*s, h=40*s;
+    return `<rect x="${x}" y="${y-h}" width="${w}" height="${h}" fill="${c.plaster}"/><rect x="${x}" y="${y-h*.3}" width="${w}" height="${h*.3}" fill="${c.stone}"/>`+
+      `<rect x="${x+w*.38}" y="${y-h*.8}" width="${w*.24}" height="${h*.18}" fill="${c.wood}"/>`+
+      `<path d="M${x-8*s} ${y-h+2*s} Q${x+w*.5} ${y-h-4*s} ${x+w+8*s} ${y-h+2*s} L${x+w*.75} ${y-h-16*s} L${x+w*.25} ${y-h-16*s}Z" fill="${c.tile}"/>`; };
+  // castle keep: curved stone base and three tiers of white walls under upswept roofs
+  const castle=(cx,y,c)=>{
+    let o=`<path d="M${cx-72} ${y} Q${cx-58} ${y-14} ${cx-52} ${y-38} L${cx+52} ${y-38} Q${cx+58} ${y-14} ${cx+72} ${y}Z" fill="${c.stone}"/>`;
+    let yb=y-38;
+    [50,38,26].forEach((bw,i)=>{
+      o+=`<rect x="${cx-bw}" y="${yb-24}" width="${2*bw}" height="24" fill="${c.plaster}"/>`;
+      for(let k=-1;k<=1;k++) o+=`<rect x="${cx+k*bw*.55-3}" y="${yb-17}" width="6" height="8" fill="${c.castleWin}"/>`;
+      o+=eave(cx,yb-22,bw+16,c); yb-=38;
+      if(i===1) o+=`<path d="M${cx-14} ${yb+18} L${cx} ${yb+6} L${cx+14} ${yb+18}Z" fill="${c.tile}"/>`;   // little front gable
+    });
+    o+=`<path d="M${cx-24} ${yb+14} L${cx} ${yb-2} L${cx+24} ${yb+14}Z" fill="${c.tile}"/>`+
+       `<path d="M${cx-24} ${yb+12} q-4 -10 2 -12 M${cx+24} ${yb+12} q4 -10 -2 -12" stroke="${c.tile}" stroke-width="3" fill="none"/>`;   // shachihoko tips
+    return o; };
+  // five-storey pagoda with a spire
+  const pagoda=(x,y,c)=>{ let o=`<rect x="${x-1.5}" y="${y-215}" width="3" height="44" fill="${c.tile}"/>`;
+    for(let r=0;r<6;r++) o+=`<rect x="${x-5}" y="${y-208+r*6}" width="10" height="2" fill="${c.tile}"/>`;
+    for(let i=0;i<5;i++){ const yy=y-170+i*34, w=30+i*7;
+      o+=`<rect x="${x-w*.5}" y="${yy}" width="${w}" height="${i===4?34:18}" fill="${c.wood}"/>`+eave(x,yy+2,w+12,c); }
+    return o; };
+  // torii gate with upswept top beam
+  const torii=(x,y,c)=>`<rect x="${x-26}" y="${y-60}" width="6" height="60" fill="${c.torii}"/><rect x="${x+20}" y="${y-60}" width="6" height="60" fill="${c.torii}"/>`+
+    `<path d="M${x-42} ${y-70} Q${x} ${y-62} ${x+42} ${y-70} L${x+38} ${y-62} Q${x} ${y-56} ${x-38} ${y-62}Z" fill="${c.torii}"/><rect x="${x-32}" y="${y-50}" width="64" height="4" fill="${c.torii}"/><rect x="${x-2}" y="${y-58}" width="4" height="8" fill="${c.torii}"/>`;
+  // crooked black pine with flat, cloud-like boughs
+  const pine=(x,y,s,c)=>`<path d="M${x} ${y} C${x-6*s} ${y-18*s} ${x+12*s} ${y-30*s} ${x+2*s} ${y-52*s} M${x+2*s} ${y-26*s} L${x-14*s} ${y-32*s} M${x+5*s} ${y-38*s} L${x+18*s} ${y-42*s}" stroke="${c.trunk}" stroke-width="${3.5*s}" fill="none" stroke-linecap="round"/>`+
+    `<ellipse cx="${x-16*s}" cy="${y-34*s}" rx="${17*s}" ry="${5*s}" fill="${c.tree}"/><ellipse cx="${x+19*s}" cy="${y-45*s}" rx="${15*s}" ry="${5*s}" fill="${c.tree}"/><ellipse cx="${x+2*s}" cy="${y-55*s}" rx="${14*s}" ry="${5*s}" fill="${c.tree}"/>`;
+  // ishidoro: stone lantern with a glowing firebox
+  const toro=(x,y,c)=>`<rect x="${x-9}" y="${y-5}" width="18" height="5" fill="${c.stone}"/><rect x="${x-3}" y="${y-24}" width="6" height="19" fill="${c.stone}"/><rect x="${x-8}" y="${y-28}" width="16" height="4" fill="${c.stone}"/>`+
+    `<rect x="${x-6}" y="${y-40}" width="12" height="12" fill="${c.stone}"/><rect x="${x-3}" y="${y-37}" width="6" height="6" fill="${c.lamp}"/>`+
+    `<path d="M${x-13} ${y-39} Q${x-6} ${y-41} ${x} ${y-50} Q${x+6} ${y-41} ${x+13} ${y-39}Z" fill="${c.stone}"/><circle cx="${x}" cy="${y-52}" r="2.5" fill="${c.stone}"/>`+
+    (c.glow?`<circle cx="${x}" cy="${y-34}" r="11" fill="${c.glow}" opacity=".22"/>`:"");
+  const bamboo=(x,y,c)=>{ let s=""; for(let i=0;i<4;i++){ const xx=x+i*7, h=70+i*9; s+=`<rect x="${xx}" y="${y-h}" width="3" height="${h}" fill="${c.tree}"/>`; for(let k=1;k<5;k++) s+=`<rect x="${xx-.5}" y="${y-h*k/5}" width="4" height="1.5" fill="${c.trunk}"/>`; s+=`<path d="M${xx+1} ${y-h+8} q10 -6 16 -2 M${xx+1} ${y-h+24} q-10 -6 -16 -2" stroke="${c.tree}" stroke-width="2" fill="none"/>`; } return s; };
+  // taiko-bashi: arched bridge over a pond
+  const bridge=(x,y,c)=>`<ellipse cx="${x+60}" cy="${y+6}" rx="78" ry="9" fill="${c.water}"/>`+
+    `<path d="M${x} ${y} Q${x+60} ${y-44} ${x+120} ${y}" stroke="${c.torii}" stroke-width="6" fill="none"/><path d="M${x+4} ${y-12} Q${x+60} ${y-54} ${x+116} ${y-12}" stroke="${c.torii}" stroke-width="2" fill="none"/>`+
+    [18,39,60,81,102].map(px=>{ const t=px/120, dy=-44*2*t*(1-t); return `<rect x="${x+px-1}" y="${y+dy-10}" width="2" height="10" fill="${c.torii}"/>`; }).join("");
+  const wrap=(h,body)=>`url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${W}' height='${h}' viewBox='0 0 ${W} ${h}'>${body}</svg>`)}")`;
+
+  function tiles(night){
+    const c = night ? { far:"#1b2033", farSnow:"#3a4560", mid:"#171b29", near:"#12151f", wood:"#0d1018", stone:"#1f2435", plaster:"#2a3046", roof:"#151926", roofEdge:"#0b0d14", tile:"#0b0e16",
+                        shoji:"#f3c76b", shojiDim:"#2b3045", castleWin:"#f3c76b", glow:"#ffcf70", tree:"#11141d", trunk:"#0d1018", torii:"#5a2028", lamp:"#ffb347", water:"#1c2335" }
+                    : { far:"#e6dac2", farSnow:"#f6efe0", mid:"#dccdab", near:"#d3c19c", wood:"#a8936c", stone:"#c6b48f", plaster:"#efe6d2", roof:"#bba67d", roofEdge:"#a38e66", tile:"#9c8a68",
+                        shoji:"#efe5cf", shojiDim:"#efe5cf", castleWin:"#a8936c", glow:null, tree:"#c2b08a", trunk:"#a8936c", torii:"#cf8a7e", lamp:"#a8936c", water:"#e0d4b8" };
+    // far: mountain range with a snowy volcanic cone
+    seed=3; const FH=1500; let far=`<path d="M0 ${FH} L0 1180`;
+    for(let x=0;x<=W;x+=100) far+=` L${x} ${1120+rnd()*90}`;
+    far+=` L${W} ${FH}Z" fill="${c.far}"/>`;
+    far+=`<path d="M760 1180 Q900 1080 960 935 L1000 935 Q1060 1080 1200 1180Z" fill="${c.far}"/><path d="M938 990 Q952 960 960 935 L1000 935 Q1008 960 1022 990 L1000 980 L980 995 L960 980Z" fill="${c.farSnow}"/>`;
+    // mid: hills with terraced paddies, a castle keep, a pagoda, a torii, farmhouses and pines
+    const MH=1150; let mid=`<path d="M0 ${MH} L0 930 C 200 870, 380 960, 560 900 S 900 860, 1080 920 S 1300 900, ${W} 910 L${W} ${MH}Z" fill="${c.mid}"/>`;
+    for(let k=0;k<4;k++) mid+=`<path d="M380 ${960+k*14} Q560 ${930+k*14} 700 ${955+k*14}" stroke="${c.water}" stroke-width="2" fill="none" opacity=".7"/>`;
+    mid+=pagoda(250,912,c)+castle(780,888,c)+torii(1060,925,c);
+    mid+=minka(420,906,.6,c,true)+kura(530,902,.6,c)+minka(1180,914,.6,c,false);
+    [[140,935],[640,898],[930,876],[1330,915]].forEach(([x,y])=>mid+=pine(x,y,.9,c));
+    // near: village with minka, a storehouse, paddies, a bridge, bamboo and stone lanterns
+    const NH=900; let near=`<path d="M0 ${NH} L0 760 C 300 730, 600 790, 900 750 S 1250 740, ${W} 760 L${W} ${NH}Z" fill="${c.near}"/>`;
+    for(let k=0;k<3;k++) near+=`<path d="M0 ${812+k*22} Q350 ${800+k*22} 700 ${818+k*22} T${W} ${812+k*22}" stroke="${c.water}" stroke-width="3" fill="none"/>`;
+    near+=minka(60,768,1.1,c,true)+minka(320,772,1,c,false)+kura(600,774,1,c)+minka(1000,756,1,c,true)+minka(1220,762,1.05,c,false);
+    near+=bridge(720,772,c);
+    [[250,772],[560,776],[905,758],[1170,762]].forEach(([x,y])=>near+=toro(x,y,c));
+    near+=bamboo(470,776,c)+bamboo(1340,766,c);
+    // low bamboo lattice fence (yotsume-gaki)
+    for(let x=10;x<W;x+=48) near+=`<rect x="${x}" y="786" width="3" height="18" fill="${c.trunk}" opacity=".6"/>`;
+    near+=`<rect x="0" y="790" width="${W}" height="2" fill="${c.trunk}" opacity=".5"/><rect x="0" y="797" width="${W}" height="2" fill="${c.trunk}" opacity=".5"/>`;
+    return [ {img:wrap(FH,far), h:FH, speed:.12}, {img:wrap(MH,mid), h:MH, speed:.28}, {img:wrap(NH,near), h:NH, speed:.48} ];
+  }
+  const layers=[0,1,2].map(i=>{ const d=document.createElement("div"); d.className="lsc l"+i; host.appendChild(d); return d; });
+  let set=null;
+  function paint(){ set=tiles(document.documentElement.dataset.theme==="night"); set.forEach((t,i)=>{ layers[i].style.backgroundImage=t.img; layers[i].style.backgroundSize=`${W}px ${t.h}px`; }); move(); }
+  const still=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function move(){ const y=still?0:scrollY; set.forEach((t,i)=>{ layers[i].style.backgroundPosition=`${-i*230}px ${Math.round(-y*t.speed)}px`; }); }
+  let queued=false; addEventListener("scroll",()=>{ if(queued) return; queued=true; requestAnimationFrame(()=>{ queued=false; move(); }); },{passive:true});
+  // repaint when the theme changes
+  new MutationObserver(paint).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+  paint();
 })();
 </script>
 </body>
