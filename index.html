@@ -9,7 +9,7 @@
     <nav class="tabs">            the three screens: #stats, #record, #ledger
     data-screen="..."             the markup for each screen
     <script id="battle-data">     THE BATTLE DATA (JSON). "Download updated page" rewrites this block.
-    main <script>, in order:      load data / working copy, Kami & card info, clan emblems, Elo + stats,
+    main <script>, in order:      load data / working copy, Kami & card info, clan emblems, ratings (TrueSkill) + stats,
                                   each Stats section, the form, banner + backups, screen router, ledger
 
   Saving: new battles and ledger edits are kept in this browser (localStorage) until someone presses
@@ -77,6 +77,8 @@
   @keyframes paint{to{clip-path:inset(0 0 0 0)}}
 
   /* ---------- petals ---------- */
+  #landscape{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}   /* scenery sits under the petals and the content */
+  #landscape .lsc{position:absolute;inset:0;background-repeat:repeat;will-change:background-position}
   #petals{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:0}
   header.hero,main,footer{position:relative;z-index:1}
   #petalToggle{position:fixed;right:16px;bottom:16px;z-index:10;font:inherit;font-size:13px;border:1px solid var(--line);background:#fffaf0;color:var(--ink-2);padding:6px 12px;border-radius:20px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)}
@@ -90,10 +92,11 @@
 
   /* ---------- replay ---------- */
   .replay{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:4px 0 8px}
-  .replay button,#themeToggle{font:inherit;font-size:14px;font-weight:600;border:0;background:var(--sun);color:#fff;padding:8px 16px;border-radius:22px;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.15)}
+  .replay button,#themeToggle{font:inherit;font-size:14px;font-weight:600;border:0;background:var(--bar);color:#fff;padding:8px 16px;border-radius:22px;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.15)}
   .replay button:hover{filter:brightness(1.08)}
-  .replay input[type=range]{flex:1;min-width:180px;max-width:420px;accent-color:var(--sun)}
-  #replayLabel{font-size:13px;color:var(--ink-2);min-width:150px}
+  .replay input[type=range]{flex:1;min-width:180px;max-width:420px;accent-color:var(--bar)}
+  #replayLabel,.rlabel{font-size:13px;color:var(--ink-2);min-width:150px}
+  .rlabel .s{color:var(--ink-3)}
   .news{min-height:26px;font-size:14px;color:var(--ink);margin-bottom:4px}
   .news .hanko{width:22px;height:22px;font-size:13px;margin-right:8px;vertical-align:middle}
   .elowrap{display:grid;grid-template-columns:1fr 210px;gap:16px;align-items:start}
@@ -146,11 +149,15 @@
   :root[data-theme="night"]{
     --paper:#211d19; --paper-2:#12100e; --ink:#efe6d4; --ink-2:#c9bfae; --ink-3:#9d9384; --line:#3a332c; --card:#2a2520;
   }
-  :root{--card:#fffaf0}
+  :root{--card:#fffaf0;--bar:#46627f}   /* --bar: muted indigo (ai-iro) for single-series data bars */
+  [data-theme="night"]{--bar:#9fb6d1}
   [data-theme="night"] body{background:radial-gradient(ellipse at top,#1d1a2a 0%,#12100e 60%)}
   [data-theme="night"] .sunrise{display:none}
   [data-theme="night"] .moonrise{display:inline;animation:rise 2.6s cubic-bezier(.2,.7,.2,1) both}
   [data-theme="night"] .hero h1 span{color:#f3d98b}
+  /* night: the moon sits behind the stat tiles, so give them a solid dark backing */
+  [data-theme="night"] .replay > button:not(.tb),[data-theme="night"] .playb{color:#12100e}   /* night blue is light: dark text */
+  [data-theme="night"] .tile{background:rgba(14,12,10,.82);border-color:rgba(243,217,139,.25);backdrop-filter:blur(3px)}
   [data-theme="night"] .pod,[data-theme="night"] .award,[data-theme="night"] .clan,[data-theme="night"] .game{background:var(--card)}
   [data-theme="night"] .pod.p1{background:linear-gradient(180deg,#3a2f1d,#2a2520);border-color:#7a6630}
   [data-theme="night"] tbody tr:hover{background:#2e2823}
@@ -239,15 +246,26 @@
   .order{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .order .step{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:74px;padding:10px 6px 8px;border:1px solid var(--line);border-radius:12px;background:var(--card);position:relative}
   .order .step b{font-size:12px;color:var(--ink-2)}
-  .order .step .no{position:absolute;top:-9px;left:-6px;width:24px;height:24px;border-radius:50%;background:var(--sun);color:#fff;font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center}
+  .order .step .no{position:absolute;top:-9px;left:-6px;width:24px;height:24px;border-radius:50%;background:var(--bar);color:#fff;font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center}
   .order .arrow{color:var(--ink-3);font-size:16px}
-  .dsum{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin:0 0 12px}
+  .dsum{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin:0 0 14px}
   .dstat{display:flex;align-items:baseline;gap:10px;color:var(--ink-2);font-size:14px}
-  .dstat .big{font-size:40px;font-weight:700;color:#6b1d1d;line-height:1}
-  [data-theme="night"] .dstat .big{color:#e66767}
-  .dclean{font-size:14px;color:var(--ink-2)}
-  .dclean b{color:var(--ink)}
-  .dclean .s{color:var(--ink-3);font-size:12px}
+  .dstat .big{font-size:40px;font-weight:700;color:var(--ink);line-height:1}
+  .dclean{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13.5px;color:var(--ink-2)}
+  .dclean .dl{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);font-weight:600;margin-right:4px}
+  .dclean .pill{display:inline-block;padding:3px 10px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+  .honor{display:flex;align-items:center;gap:12px;max-width:760px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--card)}
+  .honor .hk{flex:0 0 34px;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:#2f6b4a;color:#fff;font-family:"Yu Mincho","Noto Serif JP",serif;font-weight:700;font-size:17px;transform:rotate(-6deg);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+  .honor .hq{flex:1;font-size:14.5px;color:var(--ink);line-height:1.45;animation:fadeUp .4s ease both}
+  .honor .hl{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);font-weight:600;margin-bottom:2px}
+  .honor .reroll{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--ink-2);border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:16px}
+  .honor .reroll:hover{color:var(--ink);border-color:var(--ink-3)}
+  .verdict{margin:12px 0 10px;font-size:15px;color:var(--ink);max-width:820px}
+  table.seats{max-width:820px}
+  table.seats th,table.seats td{padding:8px 10px}
+  table.seats tbody tr:hover{background:transparent}
+  table.seats .s{color:var(--ink-3);font-size:12.5px}
+  .wbar{display:inline-block;height:8px;border-radius:0 4px 4px 0;background:var(--bar);vertical-align:middle}
   .empty{border:1px dashed var(--line);border-radius:12px;padding:18px;text-align:center;color:var(--ink-2);background:var(--card)}
   .tile{position:relative;min-width:120px;padding:12px 16px}
   .tile .who{font-size:13px;color:#f6efe0;margin-top:2px}
@@ -306,6 +324,139 @@
   table.ledger .x{border:0;background:none;color:var(--ink-3);cursor:pointer;font-size:14px;padding:3px 5px;border-radius:5px}
   table.ledger .x:hover{background:rgba(0,0,0,.06);color:var(--ink)}
   table.ledger .x.danger:hover{background:rgba(179,38,30,.1)}
+
+  /* ---------- send-to-Tom box, copy buttons, toast ---------- */
+  .sendtom{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px;padding:12px 14px;border-radius:12px;background:#eef5ff;border:1px solid #b9d3f3;color:#1d2b3d;font-size:14px}
+  .sendtom .ic{font-size:22px}
+  .sendtom > div:nth-child(2){flex:1 1 260px}
+  .sendtom .sb{display:flex;gap:8px;flex-wrap:wrap}
+  .sendtom .sb button{margin-top:0}
+  [data-theme="night"] .sendtom{background:#1d2633;border-color:#34506f;color:#dbe7f5}
+  .copyb{display:block;margin-top:8px;border:1px solid var(--line);background:transparent;color:var(--ink-2);font:inherit;font-size:12px;border-radius:14px;padding:3px 10px;cursor:pointer}
+  .copyb:hover{border-color:var(--ink-3);color:var(--ink)}
+  #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);z-index:60;background:#1d1a16;color:#f6efe0;padding:10px 16px;border-radius:22px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+  #copyBox .cbx{background:var(--paper);color:var(--ink);border-radius:12px;padding:18px;width:min(560px,100%);display:flex;flex-direction:column;gap:10px}
+  #copyBox .cbx p{margin:0;font-size:13.5px;color:var(--ink-2)}
+  #copyBox textarea{font:13px/1.45 Consolas,monospace;width:100%;border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--card);color:var(--ink);resize:vertical}
+  #copyBox button{align-self:flex-end}
+
+  /* ---------- Stats sections as unrolled papyrus scrolls ---------- */
+  .screen[data-screen="stats"] section{
+    --card:rgba(255,251,238,.62);
+    margin:32px 4px;border:0;border-radius:4px;
+    background-color:#f8f0de;
+    background-image:
+      radial-gradient(ellipse at center, rgba(255,252,242,.6) 0%, rgba(255,252,242,0) 70%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .55' numOctaves='2' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 .42 0 0 0 0 .3 0 0 0 0 .14 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .25 0 0 0 0 .1 0 0 0 .045 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    box-shadow:inset 0 0 40px rgba(140,100,50,.10), inset 0 0 0 1px rgba(150,115,65,.18), 0 2px 6px rgba(60,40,15,.06);
+  }
+  /* wooden rollers top and bottom */
+  .screen[data-screen="stats"] section::before,
+  .screen[data-screen="stats"] section::after{
+    content:"";position:absolute;left:-7px;right:-7px;height:9px;border-radius:6px;pointer-events:none;
+    background:linear-gradient(180deg,#e3d3b2 0%,#cdb68c 55%,#b89f74 100%);
+    box-shadow:0 1px 2px rgba(60,40,15,.12);
+  }
+  .screen[data-screen="stats"] section::before{top:-5px}
+  .screen[data-screen="stats"] section::after{bottom:-5px}
+  [data-theme="night"] .screen[data-screen="stats"] section::before,
+  [data-theme="night"] .screen[data-screen="stats"] section::after{background:linear-gradient(180deg,#4d4132 0%,#3b3126 100%);box-shadow:none}
+  [data-theme="night"] .screen[data-screen="stats"] section{
+    --card:rgba(20,17,14,.55);
+    background-color:#2a231b;
+    background-image:
+      radial-gradient(ellipse at center, rgba(255,200,120,.07) 0%, rgba(0,0,0,0) 62%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .55' numOctaves='2' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 .8 0 0 0 0 .65 0 0 0 0 .4 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+    box-shadow:inset 0 0 40px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,220,170,.06);
+  }
+
+  /* ---------- last battle recap + movement ---------- */
+  .recap{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin:0 0 12px;padding:9px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-size:14px}
+  .recap .rl{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);font-weight:700}
+  .recap .rm{font-size:13px;font-weight:600;padding:2px 9px;border-radius:12px;border:1px solid var(--line)}
+  .mv{display:inline-block;min-width:26px;font-weight:700;font-size:12.5px}
+  .mv.same{color:var(--ink-3)}
+  .mv.new{font-size:10px;letter-spacing:.06em;color:#fff;background:var(--bar);border-radius:8px;padding:1px 6px;min-width:0}
+  .md{font-size:11.5px;color:var(--ink-3)}
+  .md.up{color:#1a7a3a}.md.down{color:#b3261e}
+  [data-theme="night"] .up,[data-theme="night"] .md.up{color:#6fcf8f}
+  [data-theme="night"] .down,[data-theme="night"] .md.down{color:#ef8a8a}
+
+  #eloChart circle.fresh,#eloChart text.endlbl{transform-box:fill-box;transform-origin:center}
+
+  /* ---------- segmented control (unused for now) ---------- */
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-right:8px}
+  .seg button{font:inherit;font-size:13px;font-weight:600;border:0;background:var(--card);color:var(--ink-2);padding:5px 12px;cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--bar);color:#fff}
+  .pm{font-size:11px;color:var(--ink-3);margin-left:2px}
+
+  /* ---------- leaderboard time travel ---------- */
+  .boardtime{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;font-size:14px}
+  .boardtime .bt-l{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);font-weight:700;margin-right:2px}
+  .boardtime input[type=range]{flex:1;min-width:160px;max-width:360px;accent-color:var(--bar)}
+  .tb{border:1px solid var(--line);background:var(--card);color:var(--ink-2);border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:12px}
+  .tb:disabled{opacity:.35;cursor:default}
+  .playb{font:inherit;font-size:13.5px;font-weight:600;border:0;background:var(--bar);color:#fff;border-radius:22px;padding:6px 14px;cursor:pointer;margin-right:2px;box-shadow:0 2px 0 rgba(0,0,0,.15)}   /* matches Rise and Fall's Replay button */
+  .playb:hover{filter:brightness(1.1)}
+  .replay .tb{flex:0 0 auto;background:var(--card);color:var(--ink-2);border:1px solid var(--line);box-shadow:none;width:30px;height:30px;padding:0;font-size:12px;font-weight:400;border-radius:50%}
+  .replay .tb:hover{filter:none;color:var(--ink);border-color:var(--ink-3)}
+  .boardtime .s,.recap .s{color:var(--ink-3);font-size:12.5px}
+  .boardtime #bLatest{margin-top:0}
+  section.pastview #board{box-shadow:inset 3px 0 0 var(--bar)}
+  section.pastview .recap{border-color:var(--bar)}
+
+  /* ---------- ratings explainer ---------- */
+  .elohow{margin-top:14px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  .elohow summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--ink-2);list-style:none}
+  .elohow summary::-webkit-details-marker{display:none}
+  .elohow summary::before{content:"▸";display:inline-block;margin-right:8px;transition:transform .2s}
+  .elohow[open] summary::before{transform:rotate(90deg)}
+  .elohow .elobody{padding:0 16px 14px;font-size:14px;line-height:1.5}
+  .elohow h4{margin:14px 0 4px;font-size:16px}
+  .elohow p{margin:6px 0}
+  .elohow .s{font-size:12.5px;color:var(--ink-3)}
+  .elosteps{margin:0;padding-left:20px}
+  .elosteps li{margin-bottom:4px}
+  table.elox{max-width:640px;font-size:13.5px}
+  table.elox th,table.elox td{padding:6px 10px;cursor:default}
+  table.elox th{text-transform:none;letter-spacing:0;font-size:12.5px}
+  table.elox tbody tr:hover{background:transparent}
+  table.elox tfoot td{border-top:2px solid var(--line)}
+
+  /* ---------- quick rules ---------- */
+  .golden{display:flex;align-items:center;gap:14px;margin:6px 0 14px;padding:12px 16px;border-radius:12px;background:#1d1a16;color:#f6efe0}
+  .golden .gk{flex:0 0 40px;height:40px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:#b8892b;color:#fff;font-family:"Yu Mincho","Noto Serif JP",serif;font-weight:700;font-size:20px;transform:rotate(-6deg);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+  .golden b{display:block;font-size:17px;margin-bottom:2px}
+  .golden span{font-size:13.5px;color:#d9cfbc}
+  [data-theme="night"] .golden{background:#efe6d4;color:#1d1a16}
+  [data-theme="night"] .golden span{color:#55504a}
+  .rules .forgot{border:1px solid #e6c766;background:#fff6d6;border-radius:12px;padding:14px 18px 8px;margin:4px 0 18px}
+  [data-theme="night"] .rules .forgot{background:#332a17;border-color:#7a6630}
+  .rules .forgot h3{margin:0 0 6px;font-size:18px}
+  .fphases{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:10px 22px}
+  .fp h4{margin:6px 0 6px;font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);display:flex;align-items:center;gap:8px}
+  .fp .ph{width:22px;height:22px;border-radius:50%;background:var(--bar);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;letter-spacing:0}
+  .rules .forgot ul{margin:0;padding-left:18px}
+  .rules .forgot li.house{list-style:none;margin-left:-18px}
+  .htag{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#fff;background:var(--bar);border-radius:10px;padding:1px 8px;margin-right:6px;vertical-align:1px}
+  .fend{margin:6px 0 8px;font-size:14px;padding-top:8px;border-top:1px dashed #e0c870}
+  [data-theme="night"] .fend{border-top-color:#7a6630}
+  .rules .forgot li{margin:0 0 8px;break-inside:avoid;font-size:14.5px;line-height:1.45}
+  .rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:14px}
+  .rcard2{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:14px 16px}
+  .rcard2 h3{margin:0 0 8px;font-size:17px}
+  .rules .flow{margin:0;padding-left:20px;font-size:14px;line-height:1.5}
+  .rules .flow li{margin-bottom:4px}
+  .rules ul.flow{padding-left:18px}
+  .rnote{font-size:13px;color:var(--ink-2);margin:8px 0 0}
+  table.mand{font-size:13.5px}
+  table.mand th,table.mand td{padding:6px 6px;white-space:normal;vertical-align:top}
+  table.mand tbody tr:hover{background:transparent}
+  .kamil{margin:0;padding-left:18px;font-size:14px;line-height:1.5}
+  .rsrc{font-size:12px;color:var(--ink-3);margin:16px 0 0}
+  @media (max-width:520px){ .tabs .tl{display:none} }
 
   /* ---------- phones & small tablets ---------- */
   .awards{grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr))}
@@ -399,9 +550,9 @@
   .pod svg{width:72px;height:72px;display:block;margin:0 auto}
 
   /* ---------- table ---------- */
-  .tablewrap{overflow-x:auto}
-  table{border-collapse:collapse;width:100%;font-size:14.5px}
-  th,td{padding:8px 7px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  .tablewrap{overflow-x:auto;overflow-y:hidden}   /* hidden: sliding rows mustn't flash a vertical scrollbar */
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  th,td{padding:8px 6px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
   th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600;cursor:pointer;user-select:none}
   th:hover{color:var(--ink)}
   th.l,td.l{text-align:left}
@@ -409,7 +560,7 @@
   td.name{font-weight:600}
   .rank{display:inline-flex;width:26px;height:26px;border-radius:50%;align-items:center;justify-content:center;font-size:13px;font-weight:700;background:#ece2cc;color:var(--ink)}
   .rank.r1{background:var(--sun);color:#fff}.rank.r2{background:#1d1a16;color:#fff}.rank.r3{background:var(--gold);color:#fff}
-  .bar{display:inline-block;height:8px;border-radius:0 4px 4px 0;background:var(--sun);vertical-align:middle;margin-left:8px}
+  .bar{display:inline-block;height:8px;border-radius:0 4px 4px 0;background:var(--bar);vertical-align:middle;margin-left:8px}
   .mon{width:22px;height:22px;vertical-align:middle;margin-right:6px}
   .up{color:#1a7a3a}.down{color:#b3261e}
 
@@ -485,6 +636,7 @@
     </filter>
   </defs>
 </svg>
+<div id="landscape" aria-hidden="true"></div>
 <canvas id="petals" aria-hidden="true"></canvas>
 <button id="petalToggle" type="button">🌹 Petals: on</button>
 <button id="themeToggle" type="button">🌙 Night</button>
@@ -550,8 +702,9 @@
 <nav class="tabs" aria-label="Screens">
   <a class="brand serif" href="#stats">昇 Rising Sun</a>
   <a class="tab" data-tab="stats" href="#stats">📜 Stats</a>
-  <a class="tab" data-tab="record" href="#record">⚔ Record a Battle</a>
+  <a class="tab" data-tab="record" href="#record">⚔ Record<span class="tl"> a Battle</span></a>
   <a class="tab" data-tab="ledger" href="#ledger">📒 Ledger</a>
+  <a class="tab" data-tab="rules" href="#rules">📖 Rules</a>
 </nav>
 <div class="pending" id="pendingBar" hidden></div>
 <main>
@@ -559,22 +712,27 @@
 <div class="screen" data-screen="stats">
   <section>
     <h2 class="serif">The Shogunate <small>将軍</small></h2>
-    <p class="lede">Ranked by <b>Elo rating</b>, the same system used for chess. Everyone starts at 1500. After each game, every player is compared with every other player at the table. Beating someone rated higher earns more points than beating someone rated lower. Rising Sun is a long game, so it takes <b>2 battles</b> to earn a rank. Warlords with only 1 battle are <b>Ronin</b> (unranked).</p>
+    <p class="lede">Ranked by <b>TrueSkill</b>, the rating system Microsoft built for multiplayer games. Only finishing order counts: each battle, you're compared with everyone at the table, and beating higher-rated players earns more. Your rating is a cautious estimate that rises as you prove yourself, so a lucky first night can't vault anyone to the top. Rising Sun is a long game, so it takes <b>2 battles</b> to earn a rank. Warlords with only 1 battle are <b>Ronin</b> (unranked).</p>
     <div class="podium" id="podium"></div>
   </section>
 
   <section>
     <h2 class="serif">Leaderboard <small>番付</small></h2>
     <p class="lede">Click any column header to sort. <b>Avg Finish</b> converts finishing place to a 0–100 scale (100 = always 1st, 0 = always last), so 4- and 6-player games can be compared. <b>Score vs Table</b> is a player's average score as a percentage of their table's average score (100% = average).</p>
+    <div class="boardtime" role="group" aria-label="Leaderboard as of a battle"><button type="button" class="playb" id="bPlay" aria-label="Replay every battle">▶ Replay the war</button><button type="button" class="tb" id="bPrev" aria-label="Previous battle">◀</button><input type="range" id="bSlider" min="1" value="1" aria-label="Show standings after battle"><button type="button" class="tb" id="bNext" aria-label="Next battle">▶</button><span id="bLabel"></span><button type="button" class="ghost" id="bLatest" hidden>Back to latest</button></div>
+    <div class="recap" id="lastRecap"></div>
     <div class="tablewrap"><table id="board"></table></div>
+    <details class="elohow" id="tsHow"><summary>How are ratings calculated?</summary><div class="elobody" id="tsBody"></div></details>
   </section>
 
   <section>
     <h2 class="serif">The Rise and Fall <small>栄枯盛衰</small></h2>
-    <p class="lede">Elo rating after each battle for the 8 warlords with the most battles. Hover over the chart to see ratings at any game. Click a name in the legend to hide or show that line.</p>
+    <p class="lede">TrueSkill rating after each battle for the 8 warlords with the most battles. Hover over the chart to see ratings at any game. Click a name in the legend to hide or show that line.</p>
     <div class="replay">
       <button type="button" id="replayBtn">▶ Replay the war</button>
+      <button type="button" class="tb" id="rPrev" aria-label="Previous battle">◀</button>
       <input type="range" id="replaySlider" min="0" max="11" value="11" aria-label="Show ratings after battle">
+      <button type="button" class="tb" id="rNext" aria-label="Next battle">▶</button>
       <span id="replayLabel">After all battles</span>
     </div>
     <div class="news" id="replayNews" aria-live="polite"></div>
@@ -587,7 +745,8 @@
 
   <section>
     <h2 class="serif">The Honor Track <small>格付</small></h2>
-    <p class="lede">Each regular's marker sits on the track at their current Elo, and the colored bands show which rank title that rating earns. Warlords with only 1 battle are <b>Ronin</b> (masterless) until they fight a second battle and earn a rank.</p>
+    <p class="lede">Each regular's marker sits on the track at their current rating, and the colored bands show which rank title that rating earns. Warlords with only 1 battle are <b>Ronin</b> (masterless) until they fight a second battle and earn a rank.</p>
+    <div class="replay" role="group" aria-label="Honor track as of a battle"><button type="button" id="hPlay">▶ Replay the war</button><button type="button" class="tb" id="hPrev" aria-label="Previous battle">◀</button><input type="range" id="hSlider" min="1" value="1" aria-label="Show the track after battle"><button type="button" class="tb" id="hNext" aria-label="Next battle">▶</button><span class="rlabel" id="hLabel"></span></div>
     <div class="honorwrap">
       <div class="chart" id="honorTrack"></div>
       <div class="tiers" id="tierLegend"></div>
@@ -618,14 +777,14 @@
 
   <section>
     <h2 class="serif">Starting Order <small>手番</small></h2>
-    <p class="lede">Your clan decides when you take your turn: Koi always goes first, then Sun, Lotus, Turtle, Dragonfly, Fox, Bonsai and Moon. Each warlord's <b>seat</b> is their place in that order among the clans at the table, so Turtle can be the 1st seat when no Koi, Sun or Lotus is playing. Seats are only counted when every clan at the table was recorded.</p>
+    <p class="lede">Turn order comes from your clan, always in this order. Your <b>turn position</b> is where you fall among the clans actually at the table: with no Koi or Sun playing, Lotus goes 1st. <b>Does going first help?</b></p>
     <div class="order" id="startOrder"></div>
     <div class="chart" id="seatChart" style="margin-top:14px"></div>
   </section>
 
   <section>
     <h2 class="serif">Distrust Meter <small>裏切</small></h2>
-    <p class="lede">Who has played the <b>Betrayal tile</b>, and how often. Our table mostly keeps its word, so every betrayal is remembered. Tap the 🗡 counter on the Record a Battle screen each time someone betrays. Older battles weren't tracked, so they don't count.</p>
+    <p class="lede">Who has played the <b>Betray Mandate</b>, and how often. Our table mostly keeps its word, so every betrayal is remembered. Tap the 🗡 counter on the Record a Battle screen each time someone betrays. Older battles weren't tracked, so they don't count.</p>
     <div class="dsum" id="trustSummary"></div>
     <div class="chart" id="trustChart"></div>
   </section>
@@ -650,7 +809,7 @@
 
   <section>
     <h2 class="serif">Chronicle of Battles <small>戦記</small></h2>
-    <p class="lede">Every recorded game. The small numbers on the right show each player's Elo change from that game.</p>
+    <p class="lede">Every recorded game. The small numbers on the right show each player's rating change from that battle.</p>
     <div class="games" id="games"></div>
   </section>
 
@@ -659,7 +818,7 @@
     <ul class="notes">
       <li><b>Two Ryans:</b> <b>Ryan Wallace</b> and <b>Ryan Hicks</b> are tracked separately. The Ryan recorded without a last name in games 1, 3, 4 and 10 is assumed to be Ryan Wallace.</li>
       <li><b>Game 1:</b> Only Andreina's score (79) was recorded. The game counts as Andreina beating each of the other four players, but they don't get an order among themselves.</li>
-      <li><b>Game 2:</b> Only the winner (Andreina, 58, Sun Clan) was recorded. It counts toward her wins and games played but not toward Elo, because the other players are unknown.</li>
+      <li><b>Game 2:</b> Only the winner (Andreina, 58, Sun Clan) was recorded. It counts toward her wins and games played but not toward ratings, because the other players are unknown.</li>
       <li><b>Missing clans:</b> in game 7 only Tom's clan (Turtle) was recorded, and game 2 only recorded the winner's clan, so those games count less toward the clan stats and starting order.</li>
       <li><b>Ties</b> (game 4: Duffy/Chandler 71; game 8: Stephen/Chandler 52 and Adam/Thane 12) count as draws.</li>
       <li>Games are assumed to be in the order they were numbered. Only three dates were recorded (12/31/24 for game 8, 5/25/26 for game 10 and 11/22/26 for game 11).</li>
@@ -672,6 +831,7 @@
   <section id="recordSec">
     <h2 class="serif">Record a Battle <small>記録</small></h2>
     <p class="lede">Enter a new game and every chart, rating and award updates right away. New battles are saved <b>in this browser</b>. To share them, or keep them safe, press <b>Download updated page</b> and replace the old <code>index.html</code> with the downloaded file.</p>
+    <div class="sendtom" role="note"><span class="ic" aria-hidden="true">📨</span><div><b>Recorded a battle or fixed something?</b> Download the backup and text or email it to <b>Tom</b>. He'll add it to the website so everyone sees it.</div><div class="sb"><button type="button" class="primary sm" data-send-backup>⬇ Download backup for Tom</button><button type="button" class="ghost" data-copy-all>📋 Copy all battles as text</button></div></div>
     <form id="battleForm" novalidate>
       <div class="fgrid">
         <label class="fld">Date<input type="date" name="date" required></label>
@@ -679,7 +839,7 @@
 
       <h3 class="serif fh">Warlords</h3>
       <div class="ptable">
-        <div class="phead"><span>#</span><span>Name</span><span>Points</span><span>Clan</span><span title="Times this warlord played the Betrayal tile">Betrayals 🗡</span><span></span></div>
+        <div class="phead"><span>#</span><span>Name</span><span>Points</span><span>Clan</span><span title="Times this warlord played the Betray Mandate">Betrayals 🗡</span><span></span></div>
         <div id="pRows"></div>
       </div>
       <button type="button" class="ghost" id="addRow">＋ Add warlord</button>
@@ -714,6 +874,7 @@
   <section id="ledgerSec">
     <h2 class="serif">The Ledger <small>帳簿</small></h2>
     <p class="lede">Every battle as raw data. Click any cell to edit it, then press <b>Save changes</b>. Empty points mean the score wasn't recorded. Changes are kept in this browser until you download the updated page.</p>
+    <div class="sendtom" role="note"><span class="ic" aria-hidden="true">📨</span><div><b>Recorded a battle or fixed something?</b> Download the backup and text or email it to <b>Tom</b>. He'll add it to the website so everyone sees it.</div><div class="sb"><button type="button" class="primary sm" data-send-backup>⬇ Download backup for Tom</button><button type="button" class="ghost" data-copy-all>📋 Copy all battles as text</button></div></div>
     <div class="ltools">
       <input type="search" id="ledgerFilter" placeholder="Filter by player, clan, Kami, note…" aria-label="Filter ledger">
       <span class="lcount" id="ledgerCount"></span>
@@ -725,6 +886,107 @@
     <div class="fmsg" id="ledgerMsg" role="alert"></div>
     <p class="swipehint">↔ Swipe sideways to see every column. The Ledger is easiest on a computer.</p>
     <div class="tablewrap"><table class="ledger" id="ledgerTable"></table></div>
+  </section>
+</div>
+
+<div class="screen" data-screen="rules" hidden>
+  <section id="rulesSec" class="rules">
+    <h2 class="serif">Quick Rules <small>心得</small></h2>
+    <p class="lede">The short version, for when it's been a while.</p>
+    <div class="golden"><span class="gk" aria-hidden="true">誉</span><div><b class="serif">Golden rule: every tie goes to higher Honor.</b><span>Battles, Kami shrines, Harvest rewards, war bids, who acts first when abilities collide, and the final score. The only exception is allies tied for first at game end, who share the win.</span></div></div>
+
+    <div class="forgot">
+      <h3 class="serif">⚠ Often forgotten</h3>
+      <div class="fphases">
+        <div class="fp">
+          <h4><span class="ph">1</span> Tea Ceremony</h4>
+          <ul>
+            <li><b>Alliances</b> are pairs and last <i>this season only</i>, unless someone Betrays.</li>
+            <li class="house"><span class="htag">House rule</span> You can't ally with the same person more than once a game, <i>unless no one else will ally with you</i>.</li>
+            <li><b>Bribes</b> (Coins, Ronin) are allowed now and in the Political Phase, never during War. Deals aren't binding.</li>
+          </ul>
+        </div>
+        <div class="fp">
+          <h4><span class="ph">2</span> Political Phase</h4>
+          <ul>
+            <li><b>Mandate bonus</b> goes to the chooser <i>and their ally</i>. Everyone else gets the basic effect.</li>
+            <li><b>The chooser goes last</b>, except on <b>Train</b>, where the chooser buys first.</li>
+            <li><b>Betray</b> breaks your alliance and costs Honor (no Honor loss if you had no ally). It <i>swaps</i> figures, it doesn't kill them. You can't swap a Daimyo or a Shinto on a shrine.</li>
+            <li><b>Shinto</b> only reach a shrine when Summoned, then stay there all season.</li>
+            <li><b>Max 4 Strongholds.</b></li>
+          </ul>
+        </div>
+        <div class="fp">
+          <h4><span class="ph">3</span> War Phase</h4>
+          <ul>
+            <li><b>Only you and your ally in a province?</b> No battle. The most Force takes it.</li>
+            <li><b>Only one clan in a province?</b> They take it, no battle.</li>
+            <li><b>You, your ally and anyone else?</b> Everyone fights, allies included. If your ally wins, your figures there <i>survive</i>.</li>
+            <li><b>Hire Ronin</b> doesn't spend your Ronin. Winning it with none still blocks everyone else.</li>
+            <li><b>Winner pays the losers:</b> the winner splits their bid Coins among the losers. Losers' bids go to the bank.</li>
+            <li><b>Hostages</b> come back at the start of next season. A Daimyo can't be taken.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="fend"><b>End of season:</b> unspent Coins and Ronin go back to the bank. Spend them or lose them.</p>
+    </div>
+
+    <div class="rgrid">
+      <div class="rcard2">
+        <h3 class="serif">A season (×3: Spring, Summer, Autumn)</h3>
+        <ol class="flow">
+          <li><b>Setup:</b> war province tokens out, take income.</li>
+          <li><b>Tea Ceremony:</b> form alliances (pairs, this season only).</li>
+          <li><b>Political:</b> 3 Mandates → Kami · 2 Mandates → Kami · 2 Mandates → Kami.</li>
+          <li><b>War:</b> provinces fight in war-number order.</li>
+          <li><b>Cleanup:</b> Coins &amp; Ronin to the bank, Shinto come home.</li>
+        </ol>
+        <p class="rnote">Mandate turn: draw 4, keep 1 secretly, put 3 back on top.</p>
+      </div>
+
+      <div class="rcard2">
+        <h3 class="serif">The 5 Mandates</h3>
+        <table class="mand">
+          <thead><tr><th class="l">Mandate</th><th class="l">Everyone</th><th class="l">Bonus (chooser + ally)</th></tr></thead>
+          <tbody>
+            <tr><td class="l"><b>Recruit</b></td><td class="l">1 figure at each of your Strongholds</td><td class="l">+1 more figure</td></tr>
+            <tr><td class="l"><b>Marshal</b></td><td class="l">Move each figure 1 step</td><td class="l">Build a Stronghold for 3 Coins</td></tr>
+            <tr><td class="l"><b>Train</b></td><td class="l">Buy 1 Season card</td><td class="l">1 Coin cheaper</td></tr>
+            <tr><td class="l"><b>Harvest</b></td><td class="l">+1 Coin</td><td class="l">Province rewards where you have most Force</td></tr>
+            <tr><td class="l"><b>Betray</b></td><td class="l" colspan="2">Chooser only: swap up to 2 enemy figures (2 clans) for your own</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="rcard2">
+        <h3 class="serif">War, step by step</h3>
+        <p class="rnote" style="margin-top:0">Everyone bids Coins secretly on the steps, then reveal. Highest bid wins each step (Honor breaks ties).</p>
+        <ol class="flow">
+          <li><b>Seppuku:</b> kill all your figures here for 1 VP + 1 Honor each.</li>
+          <li><b>Take Hostage:</b> grab 1 non-Daimyo figure and steal 1 VP.</li>
+          <li><b>Hire Ronin:</b> each of your Ronin is +1 Force.</li>
+          <li><b>Battle:</b> most Force wins the province. Losers' figures die (unless allied to the winner).</li>
+          <li><b>Imperial Poets:</b> 1 VP per figure killed in this battle.</li>
+        </ol>
+      </div>
+
+      <div class="rcard2">
+        <h3 class="serif">Kami favors</h3>
+        <p class="rnote" style="margin-top:0">Most Force on a shrine during a Kami turn gets it. Resolve shrines left to right.</p>
+        <ul class="kamil" id="rulesKami"></ul>
+      </div>
+
+      <div class="rcard2">
+        <h3 class="serif">Scoring</h3>
+        <ul class="flow">
+          <li><b>War provinces won:</b> Spring 1 VP, Summer 2, Autumn 3 each.</li>
+          <li><b>Different provinces collected:</b> 3–4 = 10 VP · 5–6 = 20 · 7–8 = 30.</li>
+          <li>Plus Winter-upgrade Season cards.</li>
+          <li><b>Most VP wins.</b> Tie → higher Honor, unless the tied players are allies: then they share the win.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="rsrc">Summarized from the rules guide at ultraboardgames.com/rising-sun. When in doubt, the rulebook wins.</p>
   </section>
 </div>
 </main>
@@ -742,7 +1004,7 @@
   {"n":8,"date":"12/31/24","note":"Stephen let Tom win · Bryan gave up · Thane big chilling 😎","results":[["Tom",72,"Koi"],["Stephen",52,"Sun"],["Chandler",52,"Turtle"],["Bryan",26,"Moon"],["Adam",12,"Lotus"],["Thane",12,"Dragonfly"]],"kami":[],"cards":["Teapot","Monster","Arrow"]},
   {"n":9,"results":[["Thane",61,"Sun"],["Tom",55,"Moon"],["Eric",45,"Turtle"],["Adam",31,"Dragonfly"],["Stephen",26,"Koi"],["Chandler",8,"Lotus"]],"kami":[],"cards":["Base","Horse","S&M Monsters"]},
   {"n":10,"date":"5/25/26","results":[["Tyler",86,"Turtle"],["Ryan Wallace",75,"Fox"],["Chandler",56,"Bonsai"],["Jd",54,"Dragonfly"],["Ryan Hicks",36,"Koi"]],"kami":[],"cards":["Base","Teapot"]},
-  {"n":11,"date":"11/22/26","results":[["Tom",75,"Turtle",0],["Chandler",48,"Fox",0],["Sam",46,"Koi",0],["Eric",32,"Bonsai",1],["Krisanne",28,"Dragonfly",0],["Stephen",5,"Lotus",0]],"kami":[],"cards":["Base","Monster pack"]}
+  {"n":11,"date":"11/22/26","results":[["Tom",75,"Turtle",0],["Chandler",48,"Fox",0],["Sam",46,"Koi",0],["Eric",32,"Bonsai",1],["Krisanne",28,"Dragonfly",0],["Stephen",5,"Lotus",0]],"kami":["Susanoo","Raijin","Fujin","Amaterasu"],"cards":["Base","Monster pack"]}
 ]
 </script>
 <script>
@@ -773,7 +1035,7 @@ function cleanBattle(g){
   if(g.players) o.players=g.players;
   if(g.partial) o.partial=g.partial;
   if(g.note) o.note=plain(g.note);
-  o.results=(g.results||[]).map(([n,s,c,bt])=>{ const row=[plain(n), typeof s==="number"&&isFinite(s)?s:null, plain(c)||null]; if(typeof bt==="number"&&isFinite(bt)) row.push(bt); return row; });   // 4th value: betrayal tiles played (absent = not tracked)
+  o.results=(g.results||[]).map(([n,s,c,bt])=>{ const row=[plain(n), typeof s==="number"&&isFinite(s)?s:null, plain(c)||null]; if(typeof bt==="number"&&isFinite(bt)) row.push(bt); return row; });   // 4th value: Betray Mandates played (absent = not tracked)
   o.kami=(g.kami||[]).map(plain).filter(Boolean);
   o.cards=(g.cards||[]).map(plain).filter(Boolean);
   if(typeof g.photo==="string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(g.photo)) o.photo=g.photo;   // optional board photo, stored inline
@@ -874,10 +1136,20 @@ const ICONS = {
    COMPUTE
    ========================================================= */
 const canon = n => ALIASES[n] || n;
-const K = 32, START = 1500, PROVISIONAL = 2;   // a long game: 2+ battles earns a rank, 1 battle = Ronin
+// ---- ratings: TrueSkill (simplified) ----
+// Each warlord has a skill estimate mu and an uncertainty sigma. The shown rating is mu - 2*sigma:
+// "skill we're ~97.5% sure you have at least". It starts at 25 - 2*8.33 = 8.3 and rises as you prove yourself.
+const TS = { MU0:25, SIG0:25/3, Z:2 };
+TS.BETA = TS.SIG0/2;  TS.TAU = TS.SIG0/100;
+const tsPdf=x=>Math.exp(-x*x/2)/Math.sqrt(2*Math.PI);
+const tsCdf=x=>{ const t=1/(1+0.2316419*Math.abs(x)), d=0.3989423*Math.exp(-x*x/2); const p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274)))); return x>0?1-p:p; };
+const tsV=t=>tsPdf(t)/Math.max(tsCdf(t),1e-12), tsW=t=>{ const v=tsV(t); return v*(v+t); };
+const tsShown=s=>s.mu-TS.Z*s.sig;
+const START = TS.MU0 - TS.Z*TS.SIG0, PROVISIONAL = 2;   // a long game: 2+ battles earns a rank, 1 battle = Ronin
+const fmtR = v => v.toFixed(1);                            // ratings show one decimal
 
 const P = {}; // player stats
-const get = n => P[n] ??= { name:n, elo:START, games:0, wins:0, scores:[], finishes:[], rel:[], clans:{}, history:[], best:null };
+const get = n => P[n] ??= { name:n, elo:START, mu:TS.MU0, sig:TS.SIG0, games:0, wins:0, scores:[], finishes:[], rel:[], clans:{}, history:[], best:null };
 const eloTimeline = []; // after each game: snapshot
 
 for (const g of GAMES){
@@ -908,31 +1180,34 @@ for (const g of GAMES){
     if (r.score != null && (p.best==null || r.score > p.best)) p.best = r.score;
   });
 
-  // Elo
+  // TrueSkill (simplified): split the battle into winner/loser pairs (like a round-robin), apply
+  // TrueSkill's two-player update to each pair, scaled so the whole battle counts once.
+  // Tied scores carry no information here. "elo" below holds the shown rating (mu - 2*sigma).
   const pairs = [];
   if (g.partial === "winnerOnly"){
-    const w = g.rows[0];
-    g.rows.slice(1).forEach(l => pairs.push([w.name, l.name, 1]));
+    g.rows.slice(1).forEach(l => pairs.push([g.rows[0].name, l.name]));
   } else if (!g.partial){
     for (let i=0;i<g.rows.length;i++) for (let j=i+1;j<g.rows.length;j++){
       const a=g.rows[i], b=g.rows[j];
-      pairs.push([a.name,b.name, a.score>b.score?1 : a.score<b.score?0 : .5]);
+      if (a.score !== b.score) pairs.push(a.score>b.score ? [a.name,b.name] : [b.name,a.name]);
     }
   }
-  g.eloUsed = pairs.length > 0;
+  g.eloUsed = pairs.length > 0;      // "this battle changed ratings"
   if (g.eloUsed){
-    const kk = K/(g.size-1);
-    const delta = {};
-    pairs.forEach(([a,b,s]) => {
-      const ea = 1/(1+10**((P[b].elo - P[a].elo)/400));
-      delta[a] = (delta[a]||0) + kk*(s-ea);
-      delta[b] = (delta[b]||0) + kk*((1-s)-(1-ea));
+    const names=[...new Set(pairs.flat())];
+    const shownBefore=Object.fromEntries(names.map(n=>[n,P[n].elo]));
+    names.forEach(n=>{ const p=P[n]; p.sig=Math.sqrt(p.sig**2+TS.TAU**2); });
+    const before=Object.fromEntries(names.map(n=>[n,{mu:P[n].mu,sig:P[n].sig}])), dmu={}, sf={}, k=1/(g.size-1);
+    pairs.forEach(([w,l])=>{
+      const A=before[w], B=before[l], c=Math.sqrt(2*TS.BETA**2+A.sig**2+B.sig**2), t=(A.mu-B.mu)/c;
+      dmu[w]=(dmu[w]||0)+k*A.sig**2/c*tsV(t);   dmu[l]=(dmu[l]||0)-k*B.sig**2/c*tsV(t);
+      sf[w]=(sf[w]||1)*(1-k*A.sig**2/c**2*tsW(t)); sf[l]=(sf[l]||1)*(1-k*B.sig**2/c**2*tsW(t));
     });
-    g.rows.forEach(r => { r.delta = delta[r.name]||0; });
-    Object.entries(delta).forEach(([n,d]) => P[n].elo += d);
+    names.forEach(n=>{ const p=P[n]; p.mu+=dmu[n]||0; p.sig*=Math.sqrt(Math.max(sf[n]||1,0.01)); p.elo=tsShown(p); });
+    g.rows.forEach(r=>{ r.delta = r.name in shownBefore ? P[r.name].elo - shownBefore[r.name] : 0; });
   }
-  const snap = {}; Object.values(P).forEach(p => snap[p.name] = p.elo);
-  eloTimeline.push({ game:g.n, ratings:snap, present:new Set(g.rows.map(r=>r.name)) });
+  const snap = {}, tsSnap = {}; Object.values(P).forEach(p => { snap[p.name] = p.elo; tsSnap[p.name] = {mu:p.mu, sig:p.sig}; });
+  eloTimeline.push({ game:g.n, ratings:snap, ts:tsSnap, present:new Set(g.rows.map(r=>r.name)) });
   g.rows.forEach(r => P[r.name].history.push({ game:g.n, elo:P[r.name].elo }));
 }
 
@@ -949,13 +1224,13 @@ const players = Object.values(P).map(p => ({
   prov: p.games < PROVISIONAL,
 })).sort((a,b) => b.elo - a.elo);
 
-/* ---------- rank titles by Elo tier ---------- */
+/* ---------- rank titles by rating tier ---------- */
 const TIERS = [
   { key:"shogun",   name:"Shogun",   kanji:"将軍", color:"#c8102e", min:null, desc:"The single highest-rated regular. Rules the realm." },
-  { key:"daimyo",   name:"Daimyo",   kanji:"大名", color:"#b8892b", min:1520, desc:"Elo 1520+. A great lord with lands and armies." },
-  { key:"samurai",  name:"Samurai",  kanji:"侍",   color:"#2a78d6", min:1500, desc:"Elo 1500–1519. An honored warrior at or above average." },
-  { key:"ashigaru", name:"Ashigaru", kanji:"足軽", color:"#2f8f5b", min:1480, desc:"Elo 1480–1499. A foot soldier fighting to climb." },
-  { key:"peasant",  name:"Peasant",  kanji:"農民", color:"#7a6a55", min:-Infinity, desc:"Below 1480. Tends the rice fields… for now." },
+  { key:"daimyo",   name:"Daimyo",   kanji:"大名", color:"#b8892b", min:17, desc:"Rating 17+. A great lord with lands and armies." },
+  { key:"samurai",  name:"Samurai",  kanji:"侍",   color:"#2a78d6", min:14, desc:"Rating 14–17. An honored warrior on the rise." },
+  { key:"ashigaru", name:"Ashigaru", kanji:"足軽", color:"#2f8f5b", min:11, desc:"Rating 11–14. A foot soldier fighting to climb." },
+  { key:"peasant",  name:"Peasant",  kanji:"農民", color:"#7a6a55", min:-Infinity, desc:"Below 11. Tends the rice fields… for now." },
   { key:"ronin",    name:"Ronin",    kanji:"浪人", color:"#55504a", min:null, desc:"Only 1 battle so far. A wandering, masterless warrior with no rank yet." },
 ];
 const TIER = Object.fromEntries(TIERS.map(t=>[t.key,t]));
@@ -977,13 +1252,13 @@ const topScore = scored.reduce((a,b)=> b.score>a.score?b:a);
 const lowScore = scored.filter(r=>!r.g.partial).reduce((a,b)=> b.score<a.score?b:a);   // the most dishonorable showing
 document.getElementById("tiles").innerHTML = [
   [GAMES.length,"Battles fought"],[players.length,"Warlords"],[topScore.score,"Greatest Glory","high",topScore.name],[lowScore.score,"Deepest Dishonor","low",lowScore.name],[Math.round(mean(GAMES.filter(g=>!g.partial).map(g=>Math.max(...g.rows.map(r=>r.score))))),"Avg winning score"]
-].map(([n,l,cls,who])=>`<div class="tile${cls?" "+cls:""}">${cls?`<span class="tk" aria-hidden="true">${cls==="high"?"栄":"恥"}</span>`:""}<div class="n serif" data-n="${n}">0</div><div class="l">${l}</div>${who?`<div class="who serif">${who}</div>`:""}</div>`).join("");
+].map(([n,l,cls,who])=>`<div class="tile${cls?" "+cls:""}">${cls?`<span class="tk" aria-hidden="true">${cls==="high"?"栄":"恥"}</span>`:""}<div class="n serif" data-n="${n}"${cls==="low"?` data-from="${topScore.score}"`:""}>${cls==="low"?topScore.score:0}</div><div class="l">${l}</div>${who?`<div class="who serif">${who}</div>`:""}</div>`).join("");
 
 const ranked = players.filter(p=>!p.prov);
 const podOrder = [1,0,2];
 document.getElementById("podium").innerHTML = podOrder.map(i => {
   const p = ranked[i]; if(!p) return "<div></div>";
-  return `<div class="pod p${i+1}">${i===0?`<span class="hanko" title="Victory">勝</span>`:""}${mon(p.favClan,72)}<div class="place">${["1st","2nd","3rd"][i]} place</div><div class="name serif">${p.name}</div><div class="elo">Elo <b>${Math.round(p.elo)}</b> · ${p.wins}W / ${p.games}G</div><div class="title">${p.tier.kanji} ${p.tier.name}</div></div>`;
+  return `<div class="pod p${i+1}">${i===0?`<span class="hanko" title="Victory">勝</span>`:""}${mon(p.favClan,72)}<div class="place">${["1st","2nd","3rd"][i]} place</div><div class="name serif">${p.name}</div><div class="elo">Rating <b>${fmtR(p.elo)}</b> · ${p.wins}W / ${p.games}G</div><div class="title">${p.tier.kanji} ${p.tier.name}</div></div>`;
 }).join("");
 
 /* ---------- leaderboard table ---------- */
@@ -991,7 +1266,8 @@ const COLS = [
   {k:"rank",l:"#",cls:"l"},
   {k:"name",l:"Warlord",cls:"l"},
   {k:"tierName",l:"Title",cls:"l"},
-  {k:"elo",l:"Elo",fmt:v=>Math.round(v)},
+  {k:"rating",l:"Rating"},   // TrueSkill rating (mu - 2 sigma)
+  {k:"moveSort",l:"Last battle"},
   {k:"games",l:"Games"},
   {k:"wins",l:"Wins"},
   {k:"winPct",l:"Win %",fmt:v=>v.toFixed(0)+"%"},
@@ -1003,31 +1279,172 @@ const COLS = [
   {k:"favClan",l:"Fav Clan",cls:"l"},
 ];
 players.forEach((p,i)=>{p.rank=i+1; p.tierName=10-TIERS.indexOf(p.tier);});  // numeric so sorting follows rank order
-let sortKey="elo", sortDir=-1;
-const eloMin = Math.min(...players.map(p=>p.elo)), eloMax = Math.max(...players.map(p=>p.elo));
+
+// ---- standings as of any battle (the Leaderboard's time travel) ----
+// Rebuilds every Leaderboard stat from the first N battles, plus rank movement caused by battle N.
+const ratingAfter = (name, N) => N>0 ? (eloTimeline[N-1].ratings[name] ?? START) : START;
+function standingsAt(N){
+  const S={};
+  const get=n=>S[n]??={name:n,games:0,wins:0,scores:[],finishes:[],rel:[],clans:{},clanWins:{},pw:[]};
+  GAMES.slice(0,N).forEach(g=>g.rows.forEach(r=>{
+    const p=get(r.name);
+    p.games++; if(r.place===1) p.wins++;
+    if(r.score!=null && !g.partial) p.scores.push(r.score);
+    if(r.score!=null && g.partial && r.place===1) p.pw.push(r.score);
+    if(r.place!=null && !g.partial) p.finishes.push((g.size-r.place)/(g.size-1));
+    if(r.rel!=null) p.rel.push(r.rel);
+    if(r.clan){ p.clans[r.clan]=(p.clans[r.clan]||0)+1; if(r.place===1) p.clanWins[r.clan]=(p.clanWins[r.clan]||0)+1; }
+  }));
+  const snap = N>0 ? eloTimeline[N-1] : null;
+  const list=Object.values(S).map(p=>{
+    const ts = snap && snap.ts[p.name] || {mu:TS.MU0, sig:TS.SIG0};
+    return {
+      name:p.name, games:p.games, wins:p.wins,
+      rating: ratingAfter(p.name, N), mu: ts.mu, sig: ts.sig,
+      avg: mean(p.scores), avgFinish: p.finishes.length? mean(p.finishes)*100 : null,
+      relAvg: p.rel.length? mean(p.rel)*100 : null, winPct: p.wins/p.games*100,
+      worst: p.scores.length? Math.min(...p.scores) : null,
+      hi: (p.scores.length||p.pw.length)? Math.max(...p.scores, ...p.pw) : null,
+      favClan: Object.entries(p.clans).sort((a,b)=>b[1]-a[1] || (p.clanWins[b[0]]||0)-(p.clanWins[a[0]]||0))[0]?.[0] || null,
+      prov: p.games < PROVISIONAL,
+    };
+  });
+  list.forEach(p=>p.elo=p.rating);     // tierFor reads .elo
+  // ranked warlords first (by rating), then the unranked one-battle guests
+  list.sort((a,b)=> (a.prov-b.prov) || (b.rating-a.rating));
+  const top=list.find(p=>!p.prov);
+  let r=0; list.forEach(p=>{ p.rank = p.prov ? null : ++r; p.tier=tierFor(p, p===top); p.tierName=10-TIERS.indexOf(p.tier); });
+  // movement caused by battle N (ranked players only)
+  const g=GAMES[N-1];
+  if(g){
+    const prevGames={}; GAMES.slice(0,N-1).forEach(x=>x.rows.forEach(rw=>prevGames[rw.name]=(prevGames[rw.name]||0)+1));
+    const beforeOrder=Object.keys(prevGames).filter(n=>prevGames[n]>=PROVISIONAL).sort((a,b)=>ratingAfter(b,N-1)-ratingAfter(a,N-1));
+    list.forEach(p=>{
+      const was=beforeOrder.indexOf(p.name), row=g.rows.find(x=>x.name===p.name);
+      p.isNew = !p.prov && was<0;                 // just earned a rank (or first appearance)
+      p.move = p.prov||p.isNew ? null : (was+1)-p.rank;
+      p.lastDelta = row && g.eloUsed ? row.delta : null;
+      p.moveSort = p.prov ? -1 : p.isNew ? -0.5 : p.move;
+    });
+  }
+  return list;
+}
+
+let viewN = GAMES.length;            // which battle the Leaderboard is showing standings after
+let boardView = standingsAt(viewN);
+const fmtDelta = d => (d>=0?"+":"") + d.toFixed(1);
+function renderRecap(){
+  const el=document.getElementById("lastRecap"), g=GAMES[viewN-1]; if(!el||!g) return;
+  const w=g.rows[0], movers=boardView.filter(p=>p.lastDelta!=null);
+  const latest = viewN===GAMES.length;
+  let chips="";
+  if(movers.length){ const up=movers.reduce((a,b)=>b.lastDelta>a.lastDelta?b:a), down=movers.reduce((a,b)=>b.lastDelta<a.lastDelta?b:a);
+    chips=` <span class="rm up">▲ ${up.name} ${fmtDelta(up.lastDelta)}</span><span class="rm down">▼ ${down.name} ${fmtDelta(down.lastDelta)}</span>`; }
+  el.innerHTML=`<span class="rl">${latest?"Last battle":"That battle"}</span><b>Battle ${g.n}${g.date?` (${g.date})`:""}:</b> ${w.name} won${w.score!=null?` with ${w.score}`:""}${w.clan?` as ${w.clan}`:""}.${chips}`+
+    (g.eloUsed?"":` <span class="s">(didn't change ratings: only the winner was recorded)</span>`);
+}
+
+let sortKey="rating", sortDir=-1, showUnranked=false;
+// FLIP animation: rows slide from their old spot, newcomers fade in, changed ratings flash
+function animateBoard(oldPos, oldVal){
+  if(!Object.keys(oldPos).length || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  document.querySelectorAll("#board tbody tr[data-n]").forEach(tr=>{
+    const n=tr.dataset.n, top=tr.getBoundingClientRect().top;
+    if(!(n in oldPos)){ tr.animate([{opacity:0},{opacity:1}],{duration:450,easing:"ease-out"}); return; }
+    const dy=oldPos[n]-top;
+    if(Math.abs(dy)>1) tr.animate([{transform:`translateY(${dy}px)`},{transform:"none"}],{duration:550,easing:"cubic-bezier(.2,.7,.2,1)"});
+    if(Math.abs(oldVal[n]-(+tr.dataset.v))>1e-6){ const cell=tr.children[COLS.findIndex(c=>c.k==="rating")]; cell && cell.animate([{backgroundColor:"rgba(70,98,127,.22)"},{backgroundColor:"transparent"}],{duration:900,easing:"ease-out"}); }
+  });
+}
 function renderBoard(){
-  const rows=[...players].sort((a,b)=>{const x=a[sortKey],y=b[sortKey]; if(x==null) return 1; if(y==null) return -1; return (typeof x==="string"? x.localeCompare(y): x-y)*sortDir;});
-  document.getElementById("board").innerHTML =
-    `<thead><tr>${COLS.map(c=>`<th class="${c.cls||""}" data-k="${c.k}">${c.l}${sortKey===c.k?(sortDir<0?" ▼":" ▲"):""}</th>`).join("")}</tr></thead><tbody>`+
-    rows.map(p=>`<tr>${COLS.map(c=>{
+  // remember where each row was (and its rating) so the new table can glide from there
+  const oldPos={}, oldVal={};
+  document.querySelectorAll("#board tbody tr[data-n]").forEach(tr=>{ oldPos[tr.dataset.n]=tr.getBoundingClientRect().top; oldVal[tr.dataset.n]=+tr.dataset.v; });
+  const ranked=boardView.filter(p=>!p.prov), guests=boardView.filter(p=>p.prov);
+  const rMin=Math.min(...boardView.map(p=>p.rating)), rMax=Math.max(...boardView.map(p=>p.rating));
+  const sorter=(a,b)=>{const x=a[sortKey],y=b[sortKey]; if(x==null) return 1; if(y==null) return -1; return (typeof x==="string"? x.localeCompare(y): x-y)*sortDir;};
+  const row=p=>`<tr data-n="${p.name}" data-v="${p.rating}"${p.prov?' class="guest"':""}>${COLS.map(c=>{
       const v=p[c.k];
-      if(c.k==="rank") return `<td class="l"><span class="rank r${p.rank}">${p.rank}</span></td>`;
+      if(c.k==="rank") return `<td class="l">${p.rank?`<span class="rank r${p.rank}">${p.rank}</span>`:`<span class="rank guest">–</span>`}</td>`;
       if(c.k==="name") return `<td class="l name">${p.name}</td>`;
+      if(c.k==="moveSort"){ const mv=p.prov?'<span class="mv same">·</span>':p.isNew?'<span class="mv new">NEW</span>':p.move>0?`<span class="mv up">▲${p.move}</span>`:p.move<0?`<span class="mv down">▼${-p.move}</span>`:'<span class="mv same">–</span>'; const d=p.lastDelta!=null?` <span class="md ${p.lastDelta>=0?"up":"down"}">${fmtDelta(p.lastDelta)}</span>`:""; return `<td>${mv}${d}</td>`; }
       if(c.k==="tierName") return `<td class="l"><span class="titlecell">${seal(p.tier)}${p.tier.name}</span></td>`;
       if(c.k==="favClan") return `<td class="l">${v?mon(v,22).replace("<svg",'<svg class="mon"')+v:"—"}</td>`;
-      if(c.k==="elo"){const w=6+ (v-eloMin)/(eloMax-eloMin||1)*46; return `<td>${Math.round(v)}<span class="bar" style="width:${w}px;opacity:${p.prov?.35:1}"></span></td>`;}
+      if(c.k==="rating"){ const w=6+(v-rMin)/(rMax-rMin||1)*30;
+        return `<td>${fmtR(v)} <span class="pm" title="Skill estimate ${p.mu.toFixed(1)}, give or take ${(TS.Z*p.sig).toFixed(1)}">±${(TS.Z*p.sig).toFixed(0)}</span><span class="bar" style="width:${w}px;opacity:${p.prov?.35:1}"></span></td>`; }
       return `<td>${c.fmt?c.fmt(v):v}</td>`;
-    }).join("")}</tr>`).join("")+"</tbody>";
-  document.querySelectorAll("#board th").forEach(th=>th.onclick=()=>{const k=th.dataset.k; if(k==="rank"){sortKey="elo";sortDir=-1;} else if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=(k==="name"||k==="favClan")?1:-1;} renderBoard();});
+    }).join("")}</tr>`;
+  document.getElementById("board").innerHTML =
+    `<thead><tr>${COLS.map(c=>`<th class="${c.cls||""}" data-k="${c.k}">${c.l}${sortKey===c.k?(sortDir<0?" ▼":" ▲"):""}</th>`).join("")}</tr></thead>`+
+    `<tbody>${[...ranked].sort(sorter).map(row).join("")}</tbody>`+
+    (guests.length?`<tbody class="unranked"><tr class="ugroup"><td colspan="${COLS.length}"><button type="button" id="unrankedToggle" aria-expanded="${showUnranked}">${showUnranked?"▾":"▸"} Unranked · ${guests.length} warlord${guests.length===1?"":"s"} with 1 battle</button></td></tr>${showUnranked?[...guests].sort(sorter).map(row).join(""):""}</tbody>`:"");
+  const ut=document.getElementById("unrankedToggle"); if(ut) ut.onclick=()=>{ showUnranked=!showUnranked; renderBoard(); };
+  animateBoard(oldPos, oldVal);
+  document.querySelectorAll("#board th").forEach(th=>th.onclick=()=>{const k=th.dataset.k; if(k==="rank"){sortKey="rating";sortDir=-1;} else if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=(k==="name"||k==="favClan")?1:-1;} renderBoard();});
 }
-renderBoard();
+// time-travel controls
+function setBoardView(n){
+  viewN=Math.max(1,Math.min(GAMES.length,n)); boardView=standingsAt(viewN);
+  const g=GAMES[viewN-1], latest=viewN===GAMES.length;
+  document.getElementById("bSlider").value=viewN;
+  document.getElementById("bLabel").innerHTML = `After <b>Battle ${viewN}</b>${g.date?` (${g.date})`:""}${latest?' <span class="s">· latest</span>':` <span class="s">of ${GAMES.length}</span>`}`;
+  document.getElementById("bPrev").disabled = viewN<=1;
+  document.getElementById("bNext").disabled = latest;
+  document.getElementById("bLatest").hidden = latest;
+  document.getElementById("board").closest("section").classList.toggle("pastview", !latest);
+  renderRecap(); renderBoard();
+}
+document.getElementById("bSlider").max=GAMES.length;
+// standings playback: step through every battle, one every 1.5s
+let boardTimer=null;
+const bPlay=document.getElementById("bPlay");
+function stopBoardPlay(){ clearInterval(boardTimer); boardTimer=null; bPlay.textContent="▶ Replay the war"; bPlay.setAttribute("aria-label","Replay every battle"); }
+bPlay.onclick=()=>{
+  if(boardTimer){ stopBoardPlay(); return; }
+  if(viewN>=GAMES.length) setBoardView(1);
+  bPlay.textContent="⏸ Pause"; bPlay.setAttribute("aria-label","Pause");
+  boardTimer=setInterval(()=>{ setBoardView(viewN+1); if(viewN>=GAMES.length) stopBoardPlay(); },1500);
+};
+document.getElementById("bSlider").addEventListener("input",e=>{ stopBoardPlay(); setBoardView(+e.target.value); });
+document.getElementById("bPrev").onclick=()=>{ stopBoardPlay(); setBoardView(viewN-1); };
+document.getElementById("bNext").onclick=()=>{ stopBoardPlay(); setBoardView(viewN+1); };
+document.getElementById("bLatest").onclick=()=>{ stopBoardPlay(); setBoardView(GAMES.length); };
+setBoardView(GAMES.length);
 
-/* ---------- Elo line chart (with replay + standings race) ---------- */
+// "How are ratings calculated?": plain-language steps + the latest winner as an example
+(function(){
+  const g=[...GAMES].reverse().find(x=>!x.partial && x.rows.length>=3), el=document.getElementById("tsBody"); if(!el) return;
+  let ex="";
+  if(g){
+    const w=g.rows[0].name, b=g.n>1?eloTimeline[g.n-2].ts[w]:null, a=eloTimeline[g.n-1].ts[w];
+    const newbie=g.rows.find(r=>!(g.n>1 && eloTimeline[g.n-2].ts[r.name]));
+    const row=(name,B,A)=>`<tr><td class="l">${name}</td><td>${B.mu.toFixed(1)} → ${A.mu.toFixed(1)}</td><td>±${(TS.Z*B.sig).toFixed(1)} → ±${(TS.Z*A.sig).toFixed(1)}</td><td><b>${fmtR(tsShown(B))} → ${fmtR(tsShown(A))}</b></td></tr>`;
+    const base={mu:TS.MU0,sig:TS.SIG0};
+    ex=`<h4 class="serif">Example: Battle ${g.n}${g.date?` (${g.date})`:""}</h4>
+      <div class="tablewrap"><table class="elox"><thead><tr><th class="l">Warlord</th><th>Skill (μ)</th><th>Give or take (±2σ)</th><th>Rating (μ − 2σ)</th></tr></thead><tbody>
+      ${b?row(`${w} (won)`,b,a):""}${newbie?row(`${newbie.name} (first battle, ${ordinal(newbie.place)})`,base,eloTimeline[g.n-1].ts[newbie.name]):""}
+      </tbody></table></div>
+      ${newbie?`<p class="s">${newbie.name}'s skill barely moved, but the rating rose because the page became much surer about them. That's how newcomers climb.</p>`:""}`;
+  }
+  el.innerHTML=`
+    <ol class="elosteps">
+      <li><b>Every warlord has two numbers:</b> a skill estimate <b>μ</b> (starts at 25) and an uncertainty <b>σ</b> (starts high, at 8.3).</li>
+      <li><b>Your rating is μ − 2σ</b>, the skill we're about 97% sure you have <i>at least</i>. Everyone starts at ${fmtR(START)}.</li>
+      <li><b>Each battle is scored as head-to-head matchups:</b> finishing above someone counts as beating them. Only finishing order matters, not the point spread.</li>
+      <li><b>After each battle, μ moves:</b> beating people you were expected to lose to moves you most.</li>
+      <li><b>…and σ shrinks.</b> Every battle makes the page surer about you, so newcomers settle quickly and regulars barely move on one lucky or unlucky night.</li>
+      <li><b>The ± next to each rating</b> is how far your true skill could still be from μ. It shrinks the more you play.</li>
+    </ol>
+    ${ex}
+    <p class="s">A simplified TrueSkill (Microsoft's rating system for multiplayer games): tied scores are skipped, Battle 1 only counts the winner beating everyone, and Battle 2 doesn't count because the other players weren't recorded. Clans and Kami don't affect ratings.</p>`;
+})();
+
+/* ---------- rating line chart (with replay + standings race) ---------- */
 // validated categorical palettes: light on parchment, dark on night surface
 const SERIES_DAY   = ["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"];
 const SERIES_NIGHT = ["#3987e5","#d95926","#199e70","#c98500","#d55181","#0ca30c","#9085e9","#e66767"];
 const isNight = () => document.documentElement.dataset.theme === "night";
-// chart lines: the 8 ranked warlords with the most battles (8 = size of the validated color palette), ordered by Elo
+// chart lines: the 8 ranked warlords with the most battles (8 = size of the validated color palette), ordered by rating
 const regulars = players.filter(p=>p.games>=PROVISIONAL).sort((a,b)=>b.games-a.games || b.elo-a.elo).slice(0,8).sort((a,b)=>b.elo-a.elo);
 function paintSeries(){ const S=isNight()?SERIES_NIGHT:SERIES_DAY; regulars.forEach((p,i)=>p.color=S[i]); }
 paintSeries();
@@ -1036,16 +1453,37 @@ let upTo = GAMES.length;   // replay cursor: show results through this battle
 let replaying=false, replayTimer=null;
 const ratingAt = (name, gi) => gi===0 ? START : (eloTimeline[gi-1].ratings[name] ?? null);
 
+let lastChartUpTo=null;
+// replay polish: new line segments draw like a pen stroke, fresh dots pop in, end labels glide
+function animateEloChart(el, grow, oldLbl, stepFwd, jumped){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const svg=el.querySelector("svg"); if(!svg) return;
+  if(jumped){ svg.animate([{opacity:.35},{opacity:1}],{duration:350,easing:"ease-out"}); }
+  if(stepFwd){
+    grow.forEach(({name,prevD})=>{
+      const path=svg.querySelector(`path[data-n="${CSS.escape(name)}"]`); if(!path) return;
+      const full=path.getTotalLength(); let prev=0;
+      if(prevD){ const tmp=document.createElementNS("http://www.w3.org/2000/svg","path"); tmp.setAttribute("d",prevD); svg.appendChild(tmp); prev=tmp.getTotalLength(); tmp.remove(); }
+      if(full-prev<1) return;
+      path.style.strokeDasharray=full;
+      path.animate([{strokeDashoffset:full-prev},{strokeDashoffset:0}],{duration:900,easing:"cubic-bezier(.3,.6,.2,1)"}).onfinish=()=>{ path.style.strokeDasharray=""; };
+    });
+    svg.querySelectorAll("circle.fresh").forEach(c=>c.animate([{opacity:0,transform:"scale(.2)"},{opacity:0,offset:.6},{opacity:1,transform:"scale(1)"}],{duration:1000,easing:"ease-out"}));
+  }
+  svg.querySelectorAll("text.endlbl").forEach(t=>{ const o=oldLbl[t.dataset.n]; if(o==null) return; const dy=o-(+t.getAttribute("y")); if(Math.abs(dy)>0.5) t.animate([{transform:`translateY(${dy}px)`},{transform:"none"}],{duration:stepFwd?900:500,easing:"cubic-bezier(.2,.7,.2,1)"}); });
+}
 function eloChart(){
+  const grow=[];
   const W=1080,H=400,m={t:16,r:110,b:36,l:48};
   const iw=W-m.l-m.r, ih=H-m.t-m.b;
   const xs = i => m.l + i/(GAMES.length)*iw;  // x=0 is "start"
   const vals = regulars.flatMap(p=>p.history.map(h=>h.elo)).concat(START);
-  const lo = Math.floor((Math.min(...vals)-10)/20)*20, hi = Math.ceil((Math.max(...vals)+10)/20)*20;
+  const GRID=2, lo = Math.floor((Math.min(...vals)-1)/GRID)*GRID, hi = Math.ceil((Math.max(...vals)+1)/GRID)*GRID;   // ratings live on a ~0-30 scale
   const ys = v => m.t + (hi-v)/(hi-lo)*ih;
   const cursor = upTo<GAMES.length;
-  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Elo rating over time">`;
-  for(let v=lo; v<=hi; v+=20){ s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${ys(v)}" y2="${ys(v)}" stroke="${v===START?"#b9ad97":"#ece2cc"}" ${v===START?'stroke-dasharray="4 4"':""}/><text x="${m.l-8}" y="${ys(v)+4}" text-anchor="end" font-size="11" fill="#8a8279">${v}</text>`; }
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Rating over time">`;
+  for(let v=lo; v<=hi; v+=GRID){ s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${ys(v)}" y2="${ys(v)}" stroke="#ece2cc"/><text x="${m.l-8}" y="${ys(v)+4}" text-anchor="end" font-size="11" fill="#8a8279">${v}</text>`; }
+  s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${ys(START)}" y2="${ys(START)}" stroke="#b9ad97" stroke-dasharray="4 4"/><text x="${W-m.r-4}" y="${ys(START)-5}" text-anchor="end" font-size="10.5" fill="#8a8279">starting rating</text>`;
   for(let i=0;i<=GAMES.length;i++){ const on=cursor&&i===upTo; s+=`<text x="${xs(i)}" y="${H-12}" text-anchor="middle" font-size="11" fill="${on?"#c8102e":"#8a8279"}" font-weight="${on?700:400}">${i===0?"Start":"G"+i}</text>`; }
   if(cursor) s+=`<rect x="${xs(upTo)}" y="${m.t}" width="${xs(GAMES.length)-xs(upTo)}" height="${ih}" fill="#8a8279" opacity=".07"/>`;
   const ends=[];
@@ -1054,15 +1492,23 @@ function eloChart(){
     const hist=p.history.filter(h=>h.game<=upTo);
     const pts=[[0,START],...hist.map(h=>[h.game,h.elo])];
     const d=pts.map(([g,e],i)=>`${i?"L":"M"}${xs(g).toFixed(1)},${ys(e).toFixed(1)}`).join("");
-    s+=`<path d="${d}" fill="none" stroke="${p.color}" stroke-width="2.6" filter="url(#brush)" stroke-linejoin="round" stroke-linecap="round"/>`;
-    hist.forEach(h=>{ const fresh=cursor&&h.game===upTo; s+=`<circle cx="${xs(h.game)}" cy="${ys(h.elo)}" r="${fresh?6:4}" fill="${p.color}" stroke="#fbf6ea" stroke-width="2"/>`; });
+    // the line as it was one battle earlier, so a replay step can draw just the new segment
+    grow.push({name:p.name, prevD: pts.filter(([gn])=>gn<upTo).map(([g,e],i)=>`${i?"L":"M"}${xs(g).toFixed(1)},${ys(e).toFixed(1)}`).join("")});
+    s+=`<path data-n="${p.name}" d="${d}" fill="none" stroke="${p.color}" stroke-width="2.6" filter="url(#brush)" stroke-linejoin="round" stroke-linecap="round"/>`;
+    hist.forEach(h=>{ const fresh=cursor&&h.game===upTo; s+=`<circle${fresh?' class="fresh"':''} cx="${xs(h.game)}" cy="${ys(h.elo)}" r="${fresh?6:4}" fill="${p.color}" stroke="#fbf6ea" stroke-width="2"/>`; });
     const last=pts[pts.length-1]; ends.push({p, x:xs(last[0]), y:ys(last[1]), v:last[1]});
   });
   ends.sort((a,b)=>a.y-b.y); let prev=-99;
   ends.forEach(e=>{ e.ly=Math.max(e.y, prev+15); prev=e.ly; });
-  ends.forEach(e=>{ s+=`<line x1="${e.x+6}" x2="${W-m.r+8}" y1="${e.y}" y2="${e.ly}" stroke="#d8ccb3" stroke-dasharray="2 3"/><text x="${W-m.r+12}" y="${e.ly+4}" font-size="12" fill="#1d1a16">${e.p.name} <tspan fill="#8a8279">${Math.round(e.v)}</tspan></text>`; });
+  ends.forEach(e=>{ s+=`<line x1="${e.x+6}" x2="${W-m.r+8}" y1="${e.y}" y2="${e.ly}" stroke="#d8ccb3" stroke-dasharray="2 3"/><text class="endlbl" data-n="${e.p.name}" x="${W-m.r+12}" y="${e.ly+4}" font-size="12" fill="#1d1a16">${e.p.name} <tspan fill="#8a8279">${fmtR(e.v)}</tspan></text>`; });
   s+=`<line id="xh" y1="${m.t}" y2="${H-m.b}" stroke="#1d1a16" stroke-width="1" opacity="0"/><rect id="hit" x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent"/></svg><div class="tip" id="eloTip"></div>`;
-  const el=document.getElementById("eloChart"); el.innerHTML=s;
+  const el=document.getElementById("eloChart");
+  // remember label heights so they can glide to their new spot
+  const oldLbl={}; el.querySelectorAll("text.endlbl").forEach(t=>oldLbl[t.dataset.n]=+t.getAttribute("y"));
+  const stepFwd = upTo===lastChartUpTo+1, jumped = lastChartUpTo!=null && upTo!==lastChartUpTo && !stepFwd;
+  el.innerHTML=s;
+  animateEloChart(el, grow, oldLbl, stepFwd, jumped);
+  lastChartUpTo=upTo;
   const svg=el.querySelector("svg"), tip=el.querySelector("#eloTip"), xh=el.querySelector("#xh");
   el.querySelector("#hit").addEventListener("mousemove",ev=>{
     const r=svg.getBoundingClientRect(), sx=(ev.clientX-r.left)*W/r.width;
@@ -1070,7 +1516,7 @@ function eloChart(){
     xh.setAttribute("x1",xs(gi)); xh.setAttribute("x2",xs(gi)); xh.setAttribute("opacity",.3);
     const snap = gi===0? null : eloTimeline[gi-1];
     const list = regulars.filter(p=>!hidden.has(p.name)).map(p=>({p,v:ratingAt(p.name,gi), played: snap? snap.present.has(p.name):false})).filter(o=>o.v!=null).sort((a,b)=>b.v-a.v);
-    tip.innerHTML=`<b>${gi===0?"Start":"After battle "+gi}</b>`+list.map(o=>`<div class="row"><span><span class="sw" style="background:${o.p.color}"></span>${o.p.name}${o.played?" ⚔":""}</span><span>${Math.round(o.v)}</span></div>`).join("")+(gi?`<div style="color:#cbbfa8;margin-top:4px;font-size:11px">⚔ = played this battle</div>`:"");
+    tip.innerHTML=`<b>${gi===0?"Start":"After battle "+gi}</b>`+list.map(o=>`<div class="row"><span><span class="sw" style="background:${o.p.color}"></span>${o.p.name}${o.played?" ⚔":""}</span><span>${fmtR(o.v)}</span></div>`).join("")+(gi?`<div style="color:#cbbfa8;margin-top:4px;font-size:11px">⚔ = played this battle</div>`:"");
     tip.style.opacity=1;
     const px=(xs(gi)/W)*r.width; tip.style.left=(px>r.width*.6? px-tip.offsetWidth-12 : px+12)+"px"; tip.style.top="10px";
   });
@@ -1085,7 +1531,7 @@ function renderRace(){
   list.forEach((o,i)=>{
     let r=raceRows[o.p.name];
     if(!r){ r=document.createElement("div"); r.className="rrow"; raceEl.appendChild(r); raceRows[o.p.name]=r; }
-    r.innerHTML=`<span class="rk">${i+1}</span><span class="dot" style="background:${o.p.color}"></span><span class="nm">${o.p.name}</span><span class="ev">${Math.round(o.v)}</span>`;
+    r.innerHTML=`<span class="rk">${i+1}</span><span class="dot" style="background:${o.p.color}"></span><span class="nm">${o.p.name}</span><span class="ev">${fmtR(o.v)}</span>`;
     r.style.top=(i*36)+"px"; r.style.order=i;   // order: used by the phone layout, where rows sit in a grid
     if(lastOrder && lastOrder.indexOf(o.p.name)>i){ r.classList.remove("moved"); void r.offsetWidth; r.classList.add("moved"); }
   });
@@ -1099,6 +1545,8 @@ function renderRace(){
   } else news.innerHTML="";
   document.getElementById("replayLabel").textContent = upTo===0 ? "Before the first battle" : upTo===GAMES.length ? "After all battles" : `After battle ${upTo} of ${GAMES.length}`;
   document.getElementById("replaySlider").value=upTo;
+  document.getElementById("rPrev").disabled = upTo<=0;
+  document.getElementById("rNext").disabled = upTo>=GAMES.length;
 }
 
 function renderLegend(){
@@ -1119,6 +1567,8 @@ replayBtn.onclick=()=>{
 };
 document.getElementById("replaySlider").max=GAMES.length;
 document.getElementById("replaySlider").addEventListener("input",ev=>{ stopReplay(); upTo=+ev.target.value; eloChart(); });
+document.getElementById("rPrev").onclick=()=>{ stopReplay(); if(upTo>0){ upTo--; eloChart(); } };
+document.getElementById("rNext").onclick=()=>{ stopReplay(); if(upTo<GAMES.length){ upTo++; eloChart(); } };
 eloChart();
 
 /* ---------- awards ---------- */
@@ -1139,7 +1589,7 @@ eloChart();
   const lp = Object.entries(lastPlace).sort((a,b)=>b[1]-a[1])[0];
   const mostWins = by(players,p=>p.wins);
   const A = [
-    ["crown","The Shogun",reg[0].name,`Highest Elo among regulars (${Math.round(reg[0].elo)}).`],
+    ["crown","The Shogun",reg[0].name,`Highest rating among regulars (${fmtR(reg[0].elo)}).`],
     ["scroll","Most Victories",mostWins.name,`${mostWins.wins} wins in ${mostWins.games} games${players.filter(p=>p.wins===mostWins.wins).length>1?" (tied with "+players.filter(p=>p.wins===mostWins.wins&&p!==mostWins).map(p=>p.name).join(", ")+")":""}.`],
     ["katana","Legendary Conquest",topScore.name,`${topScore.score} VP in game ${topScore.game}, the highest score ever recorded.`],
     ["wave","Tsunami",blow.w.name,`Won game ${blow.g.n} by ${blow.m} points, the biggest winning margin.`],
@@ -1147,9 +1597,9 @@ eloChart();
     ["shield","Iron Samurai",iron.name,`Played ${iron.games} of ${GAMES.length} recorded games.`],
     ["sake","Steady Hand",consistent.name,`Most consistent scores among regulars (± ${sd(consistent).toFixed(1)} VP).`],
     ["oni","Dishonored",lowest.name,`Only ${lowest.score} VP in game ${lowest.game}, the lowest score recorded.`],
-    ["oni","The Ronin",ronin.name,`Lowest Elo among regulars (${Math.round(ronin.elo)}).`],
+    ["oni","The Ronin",ronin.name,`Lowest rating among regulars (${fmtR(ronin.elo)}).`],
     ["oni","Bottom of the Pond",lp[0],`Finished last ${lp[1]} time${lp[1]>1?"s":""}.`],
-    ["crown","Rising Star",climber.name,`Biggest Elo gain in their most recent game (+${Math.round(climbAmt)}).`],
+    ["crown","Rising Star",climber.name,`Biggest rating gain in their most recent battle (+${climbAmt.toFixed(1)}).`],
   ];
   document.getElementById("awards").innerHTML = A.map(([i,t,w,d])=>`<div class="award"><div class="ico">${ICONS[i]}</div><div><h3 class="serif">${t}</h3><div class="who">${w}</div><p>${d}</p></div></div>`).join("");
 })();
@@ -1160,7 +1610,7 @@ const HBARS={};
 function redrawBars(){ for(const id in HBARS) hbar(id, ...HBARS[id]); }
 function hbar(elId, items, opts){
   HBARS[elId]=[items,opts];
-  const {max, fmt=v=>v, color="#c8102e", range=false, tipFn, step:stepOpt, tickFmt, min=0}=opts;
+  const {max, fmt=v=>v, color="var(--bar)", range=false, tipFn, step:stepOpt, tickFmt, min=0}=opts;
   const cw=document.getElementById(elId).clientWidth, narrow=cw>0&&cw<700;
   const rowH=30, W=narrow?Math.max(cw,280):1080, m=narrow?{l:92,r:40,t:6,b:24}:{l:130,r:70,t:6,b:24}, H=m.t+m.b+items.length*rowH;
   const iw=W-m.l-m.r, xs=v=>m.l+v/max*iw;
@@ -1172,7 +1622,7 @@ function hbar(elId, items, opts){
     const y=m.t+i*rowH+6, h=rowH-12;
     s+=`<g class="hb" data-i="${i}"><rect x="0" y="${y-6}" width="${W}" height="${rowH}" fill="transparent"/>`;
     s+=`<text x="${m.l-10}" y="${y+h/2+4}" text-anchor="end" font-size="13" fill="#1d1a16">${it.label}</text>`;
-    s+=`<path d="M${m.l},${y} H${xs(it.v)-4} a4,4 0 0 1 4,4 V${y+h-4} a4,4 0 0 1 -4,4 H${m.l}Z" fill="${it.color||color}" opacity="${it.dim?.4:1}" filter="url(#brush)"/>`;
+    s+=`<path d="M${m.l},${y} H${xs(it.v)-4} a4,4 0 0 1 4,4 V${y+h-4} a4,4 0 0 1 -4,4 H${m.l}Z" style="fill:${it.color||color}" opacity="${it.dim?.4:1}" filter="url(#brush)"/>`;
     if(range&&it.lo!=null){ s+=`<line x1="${xs(it.lo)}" x2="${xs(it.hi)}" y1="${y+h/2}" y2="${y+h/2}" stroke="#1d1a16" stroke-width="1.5"/><line x1="${xs(it.lo)}" x2="${xs(it.lo)}" y1="${y+2}" y2="${y+h-2}" stroke="#1d1a16" stroke-width="1.5"/><line x1="${xs(it.hi)}" x2="${xs(it.hi)}" y1="${y+2}" y2="${y+h-2}" stroke="#1d1a16" stroke-width="1.5"/>`; }
     s+=`<text x="${Math.max(xs(it.v), range&&it.hi!=null?xs(it.hi):0)+8}" y="${y+h/2+4}" font-size="12" fill="#55504a">${fmt(it.v)}</text></g>`;
   });
@@ -1209,22 +1659,30 @@ hbar("avgChart", withScores.map(p=>({label:p.name+(p.prov?" *":""), v:p.avg, lo:
 (function(){
   const clans=Object.keys(START_ORDER).sort((a,b)=>START_ORDER[a]-START_ORDER[b]);
   document.getElementById("startOrder").innerHTML = clans.map((c,i)=>`${i?'<span class="arrow" aria-hidden="true">›</span>':""}<div class="step"><span class="no">${START_ORDER[c]}</span>${mon(c,40)}<b>${c}</b></div>`).join("");
+  // battles where every clan (so every seat) is known, with every score recorded
+  const used=GAMES.filter(g=>!g.partial && g.rows.length && g.rows.every(r=>r.seat!=null));
+  const el=document.getElementById("seatChart");
+  if(!used.length){ el.innerHTML=`<div class="empty">No battles with every clan recorded yet.</div>`; return; }
   const S={};
-  GAMES.filter(g=>!g.partial).forEach(g=>g.rows.forEach(r=>{ if(r.seat==null) return;
-    const s=S[r.seat]??={seat:r.seat,plays:0,wins:0,rel:[],places:[]}; s.plays++; if(r.place===1) s.wins++; s.rel.push(r.rel); s.places.push(r.place); }));
-  const seats=Object.values(S).sort((a,b)=>a.seat-b.seat).map(s=>({...s,relAvg:mean(s.rel)*100,avgPlace:mean(s.places)}));
-  if(!seats.length){ document.getElementById("seatChart").innerHTML=`<div class="empty">No battles with every clan recorded yet.</div>`; return; }
-  const used=GAMES.filter(g=>!g.partial&&g.rows.every(r=>r.seat!=null)).length;
-  hbar("seatChart", seats.map(s=>({label:`${ordinal(s.seat)} to act`, v:s.relAvg, s})),
-    {max:150, fmt:v=>Math.round(v)+"%", color:"#c8102e",
-     tipFn:it=>`<b>${ordinal(it.s.seat)} seat</b><div class="row"><span>Score vs table</span><span>${it.v.toFixed(0)}%</span></div><div class="row"><span>Wins / plays</span><span>${it.s.wins} / ${it.s.plays}</span></div><div class="row"><span>Average place</span><span>${it.s.avgPlace.toFixed(1)}</span></div>`});
-  const p=document.createElement("p"); p.className="lede"; p.style.marginTop="6px";
-  const first=seats.find(s=>s.seat===1);
-  p.textContent=`Bars show average score as a percentage of the table average by seat (100% = average), from ${used} battles with every clan recorded.${first?` Going first has won ${first.wins} of ${first.plays}.`:""}`;
-  document.getElementById("seatChart").appendChild(p);
+  used.forEach(g=>g.rows.forEach(r=>{ const s=S[r.seat]??={seat:r.seat,plays:0,wins:0,places:[],chance:0,who:{}};
+    s.plays++; if(r.place===1) s.wins++; s.places.push(r.place); s.chance+=1/g.size; s.who[r.name]=(s.who[r.name]||0)+1; }));
+  const seats=Object.values(S).sort((a,b)=>a.seat-b.seat);
+  const pct=x=>Math.round(x*100)+"%";
+  const first=S[1];
+  // verdict: compare going 1st with what pure chance would give at those table sizes
+  let verdict="";
+  if(first){
+    const rate=first.wins/first.plays, chance=first.chance/first.plays;
+    const tone = first.plays<5 ? "Too few battles to tell yet." : rate>=chance*1.5 ? "So far, going first looks like a real advantage." : rate<=chance*0.6 ? "So far, going first looks like a disadvantage." : "So far, going first doesn't make much difference.";
+    verdict=`<p class="verdict"><b>Going 1st has won ${first.wins} of ${first.plays} battles (${pct(rate)}).</b> By pure chance it would win about ${pct(chance)}. ${tone}</p>`;
+  }
+  el.innerHTML = verdict + `<div class="tablewrap"><table class="seats"><thead><tr><th class="l">Turn position</th><th>Battles</th><th>Wins</th><th>Win rate</th><th class="l"></th><th>Avg finish</th><th class="l">Who sat here most</th></tr></thead><tbody>`+
+    seats.map(s=>{ const rate=s.wins/s.plays, avgP=mean(s.places), top=Object.entries(s.who).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([n,k])=>`${n}${k>1?" ×"+k:""}`).join(", ");
+      return `<tr><td class="l"><b>${ordinal(s.seat)}</b> to act</td><td>${s.plays}</td><td>${s.wins}</td><td>${pct(rate)}</td><td class="l"><span class="wbar" style="width:${Math.max(2,rate*120)}px"></span></td><td>${ordinal(Math.round(avgP))} <span class="s">(${avgP.toFixed(1)})</span></td><td class="l s">${top}</td></tr>`; }).join("")+
+    `</tbody></table></div><p class="lede" style="margin-top:8px">Based on ${used.length} battles where every clan was recorded. Later seats only exist at bigger tables, so they have fewer battles.</p>`;
 })();
 
-/* ---------- distrust meter (betrayal tile) ---------- */
+/* ---------- distrust meter (Betray Mandate) ---------- */
 (function(){
   const T={}; let tracked=0, totalB=0;
   GAMES.forEach(g=>{
@@ -1233,17 +1691,84 @@ hbar("avgChart", withScores.map(p=>({label:p.name+(p.prov?" *":""), v:p.avg, lo:
       t.tracked++; t.total+=r.betray; totalB+=r.betray; if(r.betray>0){ t.betrayed++; t.battles.push(g.n); } });
   });
   const el=document.getElementById("trustChart"), sum=document.getElementById("trustSummary");
-  if(!tracked){ sum.innerHTML=""; el.innerHTML=`<div class="empty">🗡 No betrayals tracked yet. Starting with the next battle, tap the 🗡 counter on <a href="#record">Record a Battle</a> each time someone plays the Betrayal tile.</div>`; return; }
+  if(!tracked){ sum.innerHTML=""; el.innerHTML=`<div class="empty">🗡 No betrayals tracked yet. Starting with the next battle, tap the 🗡 counter on <a href="#record">Record a Battle</a> each time someone plays the Betray Mandate.</div>`; return; }
   const all=Object.values(T);
   const traitors=all.filter(t=>t.total>0).sort((a,b)=>b.total-a.total||b.betrayed-a.betrayed||a.name.localeCompare(b.name));
   const clean=all.filter(t=>t.total===0).sort((a,b)=>b.tracked-a.tracked||a.name.localeCompare(b.name));
+  // honorable mentions: anyone never recorded betraying (tracked-clean or simply never caught)
+  const traitorNames=new Set(traitors.map(t=>t.name));
+  const honorPool=players.map(p=>p.name).filter(n=>!traitorNames.has(n));
   sum.innerHTML=`<div class="dstat"><span class="big serif">${totalB}</span><span>betrayal${totalB===1?"":"s"} in ${tracked} tracked battle${tracked===1?"":"s"}</span></div>`+
-    (clean.length?`<div class="dclean"><b>🕊 Clean record:</b> ${clean.map(t=>`${t.name}${t.tracked>1?` <span class="s">(${t.tracked})</span>`:""}`).join(", ")}</div>`:"");
-  if(!traitors.length){ el.innerHTML=`<div class="empty">🕊 No one has played the Betrayal tile in a tracked battle. An honorable table!</div>`; return; }
+    (clean.length?`<div class="dclean"><span class="dl">Clean record</span>${clean.map(t=>`<span class="pill">${t.name}${t.tracked>1?` ×${t.tracked}`:""}</span>`).join("")}</div>`:"")+
+    (honorPool.length?`<div class="honor" aria-live="polite"><span class="hk" aria-hidden="true">誠</span><div class="hq"></div><button type="button" class="reroll" title="Another honorable mention" aria-label="Another honorable mention">↻</button></div>`:"");
+  // honorable mention: a random clean-record warlord gets a compliment (or a gentle roast)
+  if(honorPool.length){
+    const villain=[...Object.values(T)].filter(t=>t.total>0).sort((a,b)=>b.total-a.total)[0]?.name;
+    const QUIPS=[
+      n=>`<b>${n}</b> would <i>NEVER</i> betray you. 😉 Probably.`,
+      n=>`<b>${n}</b> keeps promises the way a samurai keeps a blade: sharp, and never pointed at friends.`,
+      n=>`A handshake from <b>${n}</b> is worth more than a Daimyo's treasury.`,
+      n=>`Rumor says <b>${n}</b> has never even <i>looked</i> at the Betray Mandate.`,
+      n=>`<b>${n}</b>: honorable, loyal, and suspiciously quiet. Keep an eye on them anyway. 👀`,
+      n=>`Ally with <b>${n}</b>. The Kami approve.`,
+      n=>`If <b>${n}</b> betrays you, it'll be the first time. No pressure, ${n}.`,
+      n=>`<b>${n}</b> keeps their word. Their Bushi keep their swords. Both are sharp.`,
+      n=>`<b>${n}</b> hasn't betrayed anyone… <i>yet</i>.`,
+      n=>`Loyal as a koi to its pond. Well played, <b>${n}</b>.`,
+      n=>`<b>${n}</b> is so trustworthy the Betray Mandate filed a missing-person report.`,
+      n=>`Need an ally you can actually count on? <b>${n}</b> has a spotless record.`,
+      n=>`<b>${n}</b> treats alliances like sacred vows. Rare at this table. Treasure it.`,
+      n=>`The tea ceremony is calmer when <b>${n}</b> is pouring.`,
+      // other games at the table
+      n=>`<b>${n}</b> will help you build the longest road… wait a minute… this isn't Catan! On second thought… choose someone else.`,
+      n=>`<b>${n}</b> has never once hoarded the sheep. Oh, wrong game. Still, a fine ally.`,
+      n=>`<b>${n}</b> would never put a hotel on Boardwalk and bankrupt you. That's Monopoly. Here they'd just take your province.`,
+      n=>`<b>${n}</b> has never stacked 40 armies on Kamchatka. Risk players could learn a thing or two.`,
+      n=>`<b>${n}</b> won't block your last train route. Wrong box, but the sentiment stands.`,
+      n=>`In Diplomacy, <b>${n}</b> would be the one ally you'd actually trust. Low bar, but they clear it.`,
+      n=>`<b>${n}</b> says they have the Duke. In Coup you'd challenge. Here you can just believe them.`,
+      n=>`The village voted. <b>${n}</b> is not the werewolf. Probably.`,
+      n=>`<b>${n}</b> is not sus. Emergency meeting cancelled.`,
+      n=>`<b>${n}</b> would never play a Draw Four on you. Uno? Different story. Here? Loyal.`,
+      n=>`<b>${n}</b> would never fire a blue shell at an ally. Honor holds, even outside Mario Kart.`,
+      n=>`It wasn't <b>${n}</b>, in the Library, with the Betray Mandate. Case closed, detective.`,
+      n=>`<b>${n}</b> gives clues so clean you'd swear they were playing Codenames with you.`,
+      n=>`Curing four diseases takes teamwork. <b>${n}</b> is the co-op player this table needs.`,
+      // video games
+      n=>`When <b>${n}</b> throws the lantern, take it. They'll always pull you to safety.`,
+      n=>`Choose <b>${n}</b> and rise! Together, you'll make everyone remember your names.`,
+      n=>`<b>${n}</b> is the jungler who actually ganks your lane, and never steals the kill.`,
+      n=>`<b>${n}</b> pings "On my way"… and actually shows up.`,
+      n=>`<b>${n}</b>, I choose you! Loyal as a starter Pokémon.`,
+      n=>`<b>${n}</b> would never trade away your Charizard. Some bonds are sacred.`,
+      n=>`It's dangerous to go alone. Take <b>${n}</b>.`,
+      n=>`<b>${n}</b> always pays their debts on time. Tom Nook would approve.`,
+      n=>`Praise the sun! And praise <b>${n}</b>, who has never stabbed you in the back.`,
+      n=>`<b>${n}</b> fights with honor, like a true samurai. No Ghost tactics here.`,
+      n=>`<b>${n}</b> would sooner take an arrow to the knee than betray an ally.`,
+      n=>`<b>${n}</b> won't carry you off the stage just to spike you. Smash habits stay in Smash.`,
+      n=>`<b>${n}</b> is the healer who actually heals. Treasure them.`,
+      n=>`<b>${n}</b> would never let a creeper near your house. Probably.`,
+      n=>`<b>${n}</b> has never team-killed anyone for the sniper rifle.`,
+      n=>`<b>${n}</b> will always save you the long piece.`,
+      ...(villain ? [n=>`Trust <b>${n}</b>. Or at least, trust ${n} more than ${villain}.`,
+                     n=>`<b>${n}</b> watched ${villain} betray and quietly took notes. Honorably.`] : []),
+    ];
+    const box=sum.querySelector(".honor .hq");
+    let last=-1, lastQ=-1;
+    const pick=()=>{
+      let i=Math.floor(Math.random()*honorPool.length); if(honorPool.length>1 && i===last) i=(i+1)%honorPool.length; last=i;
+      let q=Math.floor(Math.random()*QUIPS.length); if(QUIPS.length>1 && q===lastQ) q=(q+1)%QUIPS.length; lastQ=q;
+      box.innerHTML=`<span class="hl">Honorable mention</span>${QUIPS[q](honorPool[i])}`;
+      box.style.animation="none"; void box.offsetWidth; box.style.animation="";   // replay the fade on each ↻
+    };
+    sum.querySelector(".reroll").onclick=pick; pick();
+  }
+  if(!traitors.length){ el.innerHTML=`<div class="empty">🕊 No one has played the Betray Mandate in a tracked battle. An honorable table!</div>`; return; }
   const max=Math.max(4, ...traitors.map(t=>t.total));
-  hbar("trustChart", traitors.map(t=>({label:t.name, v:t.total, color:"#6b1d1d", t})),
+  hbar("trustChart", traitors.map(t=>({label:t.name, v:t.total, t})),
     {max, step:1, fmt:v=>String(v),
-     tipFn:it=>`<b>${it.t.name}</b><div class="row"><span>Betrayal tiles played</span><span>${it.t.total}</span></div><div class="row"><span>Battles with a betrayal</span><span>${it.t.betrayed} of ${it.t.tracked} tracked</span></div><div class="row"><span>Betrayed in</span><span>Battle ${it.t.battles.join(", ")}</span></div>`});
+     tipFn:it=>`<b>${it.t.name}</b><div class="row"><span>Betray Mandates played</span><span>${it.t.total}</span></div><div class="row"><span>Battles with a betrayal</span><span>${it.t.betrayed} of ${it.t.tracked} tracked</span></div><div class="row"><span>Betrayed in</span><span>Battle ${it.t.battles.join(", ")}</span></div>`});
 })();
 
 /* ---------- head to head heatmap ---------- */
@@ -1285,11 +1810,11 @@ hbar("avgChart", withScores.map(p=>({label:p.name+(p.prov?" *":""), v:p.avg, lo:
 /* ---------- game log ---------- */
 document.getElementById("games").innerHTML = GAMES.map(g=>{
   const rows=g.rows.map(r=>{
-    const d=r.delta; const ds = d==null? "" : `<span class="${d>=0?"up":"down"}">${d>=0?"+":""}${Math.round(d)}</span>`;
+    const d=r.delta; const ds = d==null? "" : `<span class="${d>=0?"up":"down"}">${d>=0?"+":""}${d.toFixed(1)}</span>`;
     return `<li><span class="pl">${r.place??"–"}</span>${r.clan?mon(r.clan,22).replace("<svg",'<svg class="mon"'):'<svg class="mon" viewBox="0 0 10 10"></svg>'}<span class="nm">${r.name}${r.place===1?`<span class="hanko" title="Victory">勝</span>`:""}${r.clan?` <span style="color:#8a8279;font-size:12px">· ${r.clan}</span>`:""}</span><span class="sc">${r.score??"?"}</span><span class="de">${ds}</span></li>`;
   }).join("");
   const extra = g.partial==="unknownField" ? `<li><span class="nm" style="color:#8a8279">+ ${g.size-1} unrecorded players</span></li>` : "";
-  return `<div class="game" id="battle-${g.n}"><div class="hd"><b class="serif">Battle ${g.n}${g.saved?`<span class="savedtag" title="Saved in this browser only. Use Download updated page to keep it.">NEW</span>`:""}</b><span>${g.size} players${g.date?" · "+g.date:""}</span></div><ol>${rows}${extra}</ol><div class="ft">${g.photo?`<button type="button" class="ph" data-photo="${g.n}" aria-label="Open battle ${g.n} photo"><img src="${g.photo}" alt="Battle ${g.n} board"></button>`:""}${g.note?`<div class="note">${g.note}</div>`:""}${g.kami.length?`<div><b>Kami:</b> ${g.kami.map(k=>chip(k)).join("")}</div>`:""}${g.cards.length?`<div><b>Cards / Expansions:</b> ${g.cards.map(k=>chip(k)).join("")}</div>`:""}</div></div>`;
+  return `<div class="game" id="battle-${g.n}"><div class="hd"><b class="serif">Battle ${g.n}${g.saved?`<span class="savedtag" title="Saved in this browser only. Use Download updated page to keep it.">NEW</span>`:""}</b><span>${g.size} players${g.date?" · "+g.date:""}</span></div><ol>${rows}${extra}</ol><div class="ft">${g.photo?`<button type="button" class="ph" data-photo="${g.n}" aria-label="Open battle ${g.n} photo"><img src="${g.photo}" alt="Battle ${g.n} board"></button>`:""}${g.note?`<div class="note">${g.note}</div>`:""}${g.kami.length?`<div><b>Kami:</b> ${g.kami.map(k=>chip(k)).join("")}</div>`:""}${g.cards.length?`<div><b>Cards / Expansions:</b> ${g.cards.map(k=>chip(k)).join("")}</div>`:""}<button type="button" class="copyb" data-copy-battle="${g.n}" title="Copy this battle as text to paste in a chat">📋 Copy as text</button></div></div>`;
 }).join("");
 
 /* hero rays */
@@ -1322,10 +1847,10 @@ document.querySelectorAll("section").forEach(s=> reduceMotion ? s.classList.add(
 
 // hero tiles count up once the intro reaches them
 document.querySelectorAll(".tile .n").forEach((el,i)=>{
-  const target=+el.dataset.n;
+  const target=+el.dataset.n, from=+(el.dataset.from||0);   // Deepest Dishonor falls from the Greatest Glory score
   if(reduceMotion){ el.textContent=target; return; }
-  setTimeout(()=>{ const t0=performance.now(), dur=1200;
-    const step=()=>{ const now=performance.now(), k=Math.max(0,Math.min(1,(now-t0)/dur)), e=1-(1-k)**3; el.textContent=Math.round(target*e); if(k<1) requestAnimationFrame(step); };
+  setTimeout(()=>{ const t0=performance.now(), dur=from?1800:1200;
+    const step=()=>{ const now=performance.now(), k=Math.max(0,Math.min(1,(now-t0)/dur)), e=1-(1-k)**3; el.textContent=Math.round(from+(target-from)*e); if(k<1) requestAnimationFrame(step); };
     requestAnimationFrame(step); setTimeout(()=>el.textContent=target, dur+400); }, 2300+i*150);
 });
 
@@ -1378,16 +1903,25 @@ document.querySelectorAll(".tile .n").forEach((el,i)=>{
 /* =========================================================
    HONOR TRACK + TIER LEGEND
    ========================================================= */
-function renderHonor(){
-  const regs = players.filter(p=>!p.prov);
-  const STEP=5, lo=Math.floor((Math.min(...regs.map(p=>p.elo))-6)/STEP)*STEP, hi=Math.ceil((Math.max(...regs.map(p=>p.elo))+6)/STEP)*STEP;
+// track range covers every battle's ranked ratings, so it doesn't jump around during a replay
+const HONOR_RANGE = (()=>{ let mn=Infinity, mx=-Infinity;
+  for(let n=1;n<=GAMES.length;n++) standingsAt(n).filter(p=>!p.prov).forEach(p=>{ mn=Math.min(mn,p.rating); mx=Math.max(mx,p.rating); });
+  if(!isFinite(mn)){ mn=START; mx=START; }
+  return { lo:Math.floor(mn)-1, hi:Math.ceil(mx)+1 }; })();
+let honorN = GAMES.length;
+function renderHonor(N=honorN){
+  honorN = N;
+  const view = standingsAt(N), regs = view.filter(p=>!p.prov);
+  const STEP=1, {lo,hi}=HONOR_RANGE;   // one space per rating point
   const n=(hi-lo)/STEP+1, sp=30, W=760, top=10, H=top+n*sp+10, tx=120;
   const yOf = v => top + sp/2 + (hi - v)/STEP*sp;   // space centres sit half a space inside the bands
+  // remember marker positions so they can glide to the new ones
+  const host=document.getElementById("honorTrack"), oldPos={};
+  host.querySelectorAll("g.hmark").forEach(g=>{ oldPos[g.dataset.n]={x:+g.dataset.x, y:+g.dataset.y}; });
   let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Honor track">`;
-  // tier bands
-  // band edges fall halfway between spaces, so neighbouring bands meet cleanly
+  // tier bands; edges fall halfway between spaces, so neighbouring bands meet cleanly
   const edge = v => yOf(v - STEP/2);
-  const bands=[["daimyo",Infinity,1520],["samurai",1520,1500],["ashigaru",1500,1480],["peasant",1480,-Infinity]];
+  const bands=[["daimyo",Infinity,TIER.daimyo.min],["samurai",TIER.daimyo.min,TIER.samurai.min],["ashigaru",TIER.samurai.min,TIER.ashigaru.min],["peasant",TIER.ashigaru.min,-Infinity]];
   bands.forEach(([k,a,b])=>{
     const t=TIER[k], y1=Math.max(top-4, a===Infinity?top-4:edge(a)), y2=Math.min(H-6, b===-Infinity?H-6:edge(b));
     if(y2<=y1) return;
@@ -1398,26 +1932,48 @@ function renderHonor(){
   s+=`<rect x="${tx-6}" y="${top-2}" width="52" height="${n*sp+4}" rx="10" fill="#6b4a2b" filter="url(#brush)"/>`;
   for(let i=0;i<n;i++){ const v=hi-i*STEP, y=yOf(v);
     s+=`<rect x="${tx}" y="${y-sp/2+3}" width="40" height="${sp-6}" rx="5" fill="#e9d6b0" stroke="#4a321c" stroke-width="1"/>`;
-    s+=`<text class="cell" x="${tx+20}" y="${y+4}" text-anchor="middle" font-size="11" fill="#4a321c" font-weight="${v%20===0?700:400}">${v}</text>`; }
-  // markers, stacked sideways when they share a space
+    s+=`<text class="cell" x="${tx+20}" y="${y+4}" text-anchor="middle" font-size="11" fill="#4a321c" font-weight="${v%5===0?700:400}">${v}</text>`; }
+  // markers, stacked sideways when they share a space; positioned with a CSS transform so they can glide
   const slots={};
   regs.forEach(p=>{
-    // floor so a marker never sits in a higher tier than its rating
-    const v=Math.floor(p.elo/STEP)*STEP, k=v; const i=(slots[k]=(slots[k]||0)+1)-1;
+    const v=Math.floor(p.rating/STEP)*STEP; const i=(slots[v]=(slots[v]||0)+1)-1;   // floor: never shown in a higher tier than earned
     const x=tx+60+i*150, y=yOf(v);
-    s+=`<g class="hmark" data-n="${p.name}">${i===0?`<line x1="${tx+42}" x2="${x}" y1="${y}" y2="${y}" stroke="#8a8279" stroke-dasharray="2 3"/>`:""}`;
-    s+=`<g transform="translate(${x},${y-13})">${mon(p.favClan,26)}</g>`;
-    s+=`<text x="${x+32}" y="${y+5}" font-size="13.5" font-weight="700" fill="#1d1a16">${p.name}${p.tier.key==="shogun"?" 👑":""}<tspan dx="6" font-size="12" font-weight="400" fill="#8a8279">${Math.round(p.elo)}</tspan></text></g>`;
+    s+=`<g class="hmark" data-n="${p.name}" data-x="${x}" data-y="${y}" style="transform:translate(${x}px,${y}px)">`;
+    s+=`<line x1="${tx+42-x}" x2="0" y1="0" y2="0" stroke="#8a8279" stroke-dasharray="2 3" opacity="${i===0?1:0}"/>`;
+    s+=`<g transform="translate(0,-13)">${mon(p.favClan,26)}</g>`;
+    s+=`<text x="32" y="5" font-size="13.5" font-weight="700" fill="#1d1a16">${p.name}${p.tier.key==="shogun"?" 👑":""}<tspan dx="6" font-size="12" font-weight="400" fill="#8a8279">${fmtR(p.rating)}</tspan></text></g>`;
   });
   s+=`</svg>`;
-  document.getElementById("honorTrack").innerHTML=s;
+  host.innerHTML=s;
+  if(!matchMedia("(prefers-reduced-motion: reduce)").matches) host.querySelectorAll("g.hmark").forEach(g=>{
+    const o=oldPos[g.dataset.n], x=+g.dataset.x, y=+g.dataset.y;
+    if(!o){ if(Object.keys(oldPos).length) g.animate([{opacity:0},{opacity:1}],{duration:500,easing:"ease-out"}); return; }
+    if(o.x!==x || o.y!==y) g.animate([{transform:`translate(${o.x}px,${o.y}px)`},{transform:`translate(${x}px,${y}px)`}],{duration:700,easing:"cubic-bezier(.2,.7,.2,1)"});
+  });
 
-  const ronin = players.filter(p=>p.prov).map(p=>p.name);
+  const ronin = view.filter(p=>p.prov).map(p=>p.name);
   document.getElementById("tierLegend").innerHTML = TIERS.map(t=>{
-    const who = t.key==="ronin" ? ronin : players.filter(p=>p.tier===t).map(p=>p.name);
+    const who = t.key==="ronin" ? ronin : regs.filter(p=>p.tier===t).map(p=>p.name);
     return `<div class="tier">${seal(t,false)}<div><b class="serif">${t.name}</b><span>${t.desc}</span>${who.length?`<span style="display:block;margin-top:2px;color:var(--ink)"><b style="display:inline;font-size:12.5px">Holders:</b> ${who.join(", ")}</span>`:""}</div></div>`;
   }).join("");
+  // controls
+  const g=GAMES[N-1], latest=N===GAMES.length;
+  document.getElementById("hSlider").value=N;
+  document.getElementById("hLabel").innerHTML=`After <b>Battle ${N}</b>${g&&g.date?` (${g.date})`:""}${latest?' <span class="s">· latest</span>':` <span class="s">of ${GAMES.length}</span>`}`;
+  document.getElementById("hPrev").disabled = N<=1;
+  document.getElementById("hNext").disabled = latest;
 }
+// honor track replay
+(function(){
+  const sl=document.getElementById("hSlider"), play=document.getElementById("hPlay"); let timer=null;
+  sl.max=GAMES.length;
+  const stop=()=>{ clearInterval(timer); timer=null; play.textContent="▶ Replay the war"; };
+  play.onclick=()=>{ if(timer){ stop(); return; } if(honorN>=GAMES.length) renderHonor(1);
+    play.textContent="⏸ Pause"; timer=setInterval(()=>{ renderHonor(honorN+1); if(honorN>=GAMES.length) stop(); },1500); };
+  sl.addEventListener("input",()=>{ stop(); renderHonor(+sl.value); });
+  document.getElementById("hPrev").onclick=()=>{ stop(); renderHonor(Math.max(1,honorN-1)); };
+  document.getElementById("hNext").onclick=()=>{ stop(); renderHonor(Math.min(GAMES.length,honorN+1)); };
+})();
 renderHonor();
 
 /* =========================================================
@@ -1508,10 +2064,14 @@ renderHonor();
   document.getElementById("stars").innerHTML = Array.from({length:70},()=>{ const x=Math.random()*1200, y=Math.random()*260, r=Math.random()*1.4+.3;
     return `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(1)}" opacity="${(.3+Math.random()*.7).toFixed(2)}"/>`; }).join("");
   const btn=document.getElementById("themeToggle");
+  let themeReady=false;   // the first apply() is the page load, which already animates the sky
   function apply(t){
     document.documentElement.dataset.theme=t;
     btn.textContent = t==="night" ? "☀️ Day" : "🌙 Night";
     paintSeries(); renderLegend(); eloChart();
+    // replay the sky: the sun rises again on switching to day, the moon on switching to night
+    if(themeReady && !matchMedia("(prefers-reduced-motion: reduce)").matches){ const sky=document.querySelector(t==="night"?".moonrise":".sunrise"); if(sky) sky.animate([{transform:"translateY(300px)"},{transform:"none"}],{duration:2600,easing:"cubic-bezier(.2,.7,.2,1)"}); }
+    themeReady=true;
   }
   btn.onclick=()=>{ const t=isNight()?"day":"night"; localStorage.setItem("rs-theme-choice",t); apply(t); };  // only an explicit click is remembered
   apply(document.documentElement.dataset.theme==="night"?"night":"day");
@@ -1540,7 +2100,7 @@ renderHonor();
       <input type="text" name="pname" list="nameList" placeholder="Name" autocomplete="off" value="${esc(v.name||"")}" aria-label="Name">
       <input type="number" name="pscore" placeholder="Points" min="0" max="300" step="1" inputmode="numeric" value="${v.score??""}" aria-label="Points">
       <select name="pclan" aria-label="Clan"><option value="">Clan…</option>${CLANS.map(c=>`<option ${v.clan===c?"selected":""}>${c}</option>`).join("")}</select>
-      <span class="bstep"><button type="button" class="bm" aria-label="One fewer betrayal" title="Undo one">−</button><button type="button" class="bt" data-n="0" title="Tap each time they play the Betrayal tile" aria-label="Betrayals: 0">🗡 0</button></span>
+      <span class="bstep"><button type="button" class="bm" aria-label="One fewer betrayal" title="Undo one">−</button><button type="button" class="bt" data-n="0" title="Tap each time they play the Betray Mandate" aria-label="Betrayals: 0">🗡 0</button></span>
       <button type="button" class="rm" title="Remove this warlord" aria-label="Remove">✕</button>`;
     r.querySelector(".rm").onclick=()=>{ if(rowsEl.children.length>3){ r.remove(); renumber(); } };
     // betrayal tap counter: tap 🗡 to add one, − to take one back
@@ -1663,7 +2223,52 @@ function downloadUpdatedPage(){
     .replace(/(<script type="application\/json" id="battle-data">)[\s\S]*?(<\/script>)/, (_,a,b)=>a+"\n"+json+b);
   downloadFile("index.html", html, "text/html");
 }
-function saveBackup(){ downloadFile("rising-sun-battles.json", JSON.stringify(GAMES.map(cleanBattle),null,2), "application/json"); }
+function saveBackup(){ const d=new Date(), stamp=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; downloadFile(`rising-sun-battles-${stamp}.json`, JSON.stringify(GAMES.map(cleanBattle),null,2), "application/json"); }
+// ---- copy battles as plain text (to paste in a group chat) ----
+function battleText(g){
+  const L=[`Battle ${g.n}${g.date?" · "+g.date:""} · ${g.size} players`];
+  g.rows.forEach(r=>L.push(`${r.place??"–"}) ${r.name} ${r.score??"?"}${r.clan?" "+r.clan:""}`));
+  if(g.partial==="unknownField") L.push(`+ ${g.size-g.rows.length} unrecorded players`);
+  if(g.kami.length) L.push(`Kami: ${g.kami.join(", ")}`);
+  if(g.cards.length) L.push(`Cards: ${g.cards.join(", ")}`);
+  if(g.rows.some(r=>r.betray!=null)){ const b=g.rows.filter(r=>r.betray>0); L.push(`Betrayals: ${b.length?b.map(r=>`${r.name} ${r.betray}`).join(", "):"none"}`); }
+  if(g.note) L.push(`Notes: ${g.note}`);
+  return L.join("\n");
+}
+function allBattlesText(){
+  const d=new Date();
+  return `Rising Sun · ${GAMES.length} battles · copied ${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}\n\n`+GAMES.map(battleText).join("\n\n");
+}
+function toast(text){
+  let t=document.getElementById("toast"); if(!t){ t=document.createElement("div"); t.id="toast"; t.setAttribute("role","status"); document.body.appendChild(t); }
+  t.textContent=text; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),2200);
+}
+// if the browser won't let us copy, show the text pre-selected so it can be copied by hand
+function showCopyBox(text,label){
+  let box=document.getElementById("copyBox");
+  if(!box){
+    box=document.createElement("div"); box.id="copyBox"; box.className="lightbox"; box.setAttribute("role","dialog"); box.setAttribute("aria-label","Copy text");
+    box.innerHTML=`<div class="cbx"><b class="serif"></b><p>Select all and copy (Ctrl+C, or press and hold on a phone).</p><textarea readonly rows="14"></textarea><button type="button" class="primary sm">Done</button></div>`;
+    document.body.appendChild(box);
+    box.addEventListener("click",e=>{ if(e.target===box || e.target.closest(".cbx button")) box.hidden=true; });
+  }
+  box.querySelector("b").textContent=`Copy ${label}`;
+  const ta=box.querySelector("textarea"); ta.value=text; box.hidden=false; ta.focus(); ta.select();
+}
+function copyText(text,label){
+  const done=()=>toast(`📋 Copied ${label}. Paste it anywhere.`);
+  const fallback=()=>{ const ta=document.createElement("textarea"); ta.value=text; ta.style.cssText="position:fixed;top:-1000px;opacity:0"; document.body.appendChild(ta); ta.select();
+    let ok=false; try{ ok=document.execCommand("copy"); }catch(e){} ta.remove(); ok?done():showCopyBox(text,label); };
+  if(navigator.clipboard && window.isSecureContext){
+    let settled=false; const timer=setTimeout(()=>{ if(!settled){ settled=true; showCopyBox(text,label); } },1500);   // some browsers never answer
+    navigator.clipboard.writeText(text).then(()=>{ if(!settled){ settled=true; clearTimeout(timer); done(); } }, ()=>{ if(!settled){ settled=true; clearTimeout(timer); fallback(); } });
+  } else fallback();
+}
+document.addEventListener("click",e=>{
+  const one=e.target.closest("[data-copy-battle]"); if(one){ const g=GAMES[+one.dataset.copyBattle-1]; if(g) copyText(battleText(g),`Battle ${g.n}`); return; }
+  if(e.target.closest("[data-copy-all]")){ copyText(allBattlesText(),`all ${GAMES.length} battles`); return; }
+  if(e.target.closest("[data-send-backup]")){ saveBackup(); toast("⬇ Backup downloaded. Send that .json file to Tom."); }
+});
 function loadBackup(file, onError){
   file.text().then(t=>{
     let list; try{ list=JSON.parse(t); if(list && Array.isArray(list.games)) list=list.games; }catch(e){ list=null; }
@@ -1691,18 +2296,20 @@ function loadBackup(file, onError){
    SCREENS: #stats  #record  #ledger
    ========================================================= */
 (function(){
-  const SCREENS=["stats","record","ledger"];
+  const SCREENS=["stats","record","ledger","rules"];
   const hero=document.querySelector("header.hero");
   function route(){
     const h=location.hash.slice(1), scr=SCREENS.includes(h)?h:"stats";
     document.querySelectorAll(".screen").forEach(s=>s.hidden = s.dataset.screen!==scr);
     hero.hidden = scr!=="stats";
     document.querySelectorAll(".tabs .tab").forEach(t=>t.classList.toggle("on", t.dataset.tab===scr));
-    document.title = {stats:"Rising Sun — The Scroll of Honor", record:"Record a Battle — Rising Sun", ledger:"The Ledger — Rising Sun"}[scr];
+    document.title = {stats:"Rising Sun — The Scroll of Honor", record:"Record a Battle — Rising Sun", ledger:"The Ledger — Rising Sun", rules:"Quick Rules — Rising Sun"}[scr];
     if(scr==="stats") redrawBars();   // charts drawn while hidden had no width to measure
     if(scr!=="stats"){ window.scrollTo(0,0); document.querySelectorAll(`.screen[data-screen="${scr}"] section`).forEach(s=>s.classList.add("inview")); }
     if(h.startsWith("battle-")){ const t=document.getElementById(h); if(t){ t.closest("section")?.classList.add("inview"); setTimeout(()=>t.scrollIntoView({behavior:"smooth",block:"center"}),300); } }
   }
+  // rules tab: Kami favors come from the same data as the tooltips
+  document.getElementById("rulesKami").innerHTML=Object.entries(KAMI_INFO).map(([k,v])=>`<li><b>${k}:</b> ${v.effect}</li>`).join("");
   addEventListener("hashchange",route); route();
   // phones: redraw bar charts at the new width after rotating or resizing
   let lastW=innerWidth, t=null;
@@ -1726,7 +2333,7 @@ function loadBackup(file, onError){
   function render(){
     const q=filterEl.value.trim().toLowerCase();
     let shown=0, rowsShown=0;
-    let h=`<thead><tr><th class="l">Battle</th><th class="l">Date</th><th>Place</th><th class="l">Warlord</th><th>Points</th><th class="l">Clan</th><th title="Betrayal tiles played. Blank = not tracked">🗡</th><th class="l">Kami</th><th class="l">Cards &amp; monsters</th><th class="l">Notes</th><th></th></tr></thead>`;
+    let h=`<thead><tr><th class="l">Battle</th><th class="l">Date</th><th>Place</th><th class="l">Warlord</th><th>Points</th><th class="l">Clan</th><th title="Betray Mandates played. Blank = not tracked">🗡</th><th class="l">Kami</th><th class="l">Cards &amp; monsters</th><th class="l">Notes</th><th></th></tr></thead>`;
     draft.forEach((b,bi)=>{
       if(q && !haystack(b).includes(q)) return;
       shown++; const n=b.results.length||1; rowsShown+=b.results.length;
@@ -1741,13 +2348,13 @@ function loadBackup(file, onError){
         h+=`<td class="l"><input class="c" data-f="name" list="nameList" value="${esc(r[0])}" aria-label="Warlord"></td>`;
         h+=`<td><input class="c num" data-f="score" inputmode="numeric" value="${r[1]??""}" placeholder="?" aria-label="Points"></td>`;
         h+=`<td class="l"><select class="c" data-f="clan" aria-label="Clan"><option value="">—</option>${CLANS.map(c=>`<option ${r[2]===c?"selected":""}>${c}</option>`).join("")}</select></td>`;
-        h+=`<td><input class="c num bt" data-f="betray" inputmode="numeric" value="${r[3]??""}" placeholder="–" aria-label="Betrayals" title="Betrayal tiles played (blank = not tracked)"></td>`;
+        h+=`<td><input class="c num bt" data-f="betray" inputmode="numeric" value="${r[3]??""}" placeholder="–" aria-label="Betrayals" title="Betray Mandates played (blank = not tracked)"></td>`;
         if(ri===0){
           h+=`<td class="l" rowspan="${n}"><textarea class="c" data-f="kami" rows="2" placeholder="Kami, comma separated" aria-label="Kami">${esc(b.kami.join(", "))}</textarea></td>`;
           h+=`<td class="l" rowspan="${n}"><textarea class="c" data-f="cards" rows="2" placeholder="Card sets, comma separated" aria-label="Cards and monsters">${esc(b.cards.join(", "))}</textarea></td>`;
           h+=`<td class="l" rowspan="${n}"><textarea class="c note" data-f="note" rows="2" placeholder="Notes" aria-label="Notes">${esc(b.note)}</textarea><div class="lph">${b.photo?`<img src="${b.photo}" alt="Battle ${bi+1} photo">`:""}<label class="x filelink">📷 ${b.photo?"Replace":"Add photo"}<input type="file" accept="image/*" data-photo-in hidden></label>${b.photo?`<button type="button" class="x danger" data-act="rmphoto">Remove</button>`:""}</div></td>`;
         }
-        h+=`<td class="act">${b.results.length>1?`<button type="button" class="x" data-act="rmrow" title="Remove this warlord">✕</button>`:""}${ri===0?`<button type="button" class="x" data-act="addrow" title="Add a warlord">＋</button><button type="button" class="x danger" data-act="rmbattle" title="Delete this battle">🗑</button>`:""}</td>`;
+        h+=`<td class="act">${b.results.length>1?`<button type="button" class="x" data-act="rmrow" title="Remove this warlord">✕</button>`:""}${ri===0?`<button type="button" class="x" data-act="addrow" title="Add a warlord">＋</button><button type="button" class="x" data-copy-battle="${bi+1}" title="Copy this battle as text">📋</button><button type="button" class="x danger" data-act="rmbattle" title="Delete this battle">🗑</button>`:""}</td>`;
         h+=`</tr>`;
       });
       h+=`</tbody>`;
@@ -1838,6 +2445,112 @@ function loadBackup(file, onError){
   document.getElementById("ledgerLoad").onchange=ev=>{ const f=ev.target.files[0]; if(f) loadBackup(f, e=>{ msg.className="fmsg err"; msg.textContent=e; }); };
   addEventListener("beforeunload",ev=>{ if(dirty){ ev.preventDefault(); ev.returnValue=""; } });
   render();
+})();
+/* =========================================================
+   SCROLLING COUNTRYSIDE: three parallax layers behind the petals
+   Each layer is a repeating SVG tile; scrolling slides the layers at different speeds.
+   ========================================================= */
+(function(){
+  const host=document.getElementById("landscape"); if(!host) return;
+  const W=1400;
+  // tiny deterministic random so the scenery is the same on every load
+  let seed=7; const rnd=()=>{ seed=(seed*9301+49297)%233280; return seed/233280; };
+  // ---- Sengoku-era scenery pieces (x,y = where the piece meets the ground) ----
+  // minka: a farmhouse on a stone footing, shoji screens, a steep thatched hip-and-gable roof
+  const minka=(x,y,s,c,lit=true)=>{
+    const w=80*s, h=22*s, b=y-5*s, t=b-h, sh=lit?c.shoji:c.shojiDim;
+    let o=`<rect x="${x-3*s}" y="${b}" width="${w+6*s}" height="${5*s}" fill="${c.stone}"/>`+
+          `<rect x="${x}" y="${t}" width="${w}" height="${h}" fill="${c.wood}"/>`;
+    for(let i=0;i<4;i++){ const px=x+w*(.04+i*.24), pw=w*.2, ph=h-5*s;
+      o+=`<rect x="${px}" y="${t+3*s}" width="${pw}" height="${ph}" fill="${sh}"/>`+
+         `<path d="M${px+pw/3} ${t+3*s}v${ph}M${px+pw*2/3} ${t+3*s}v${ph}M${px} ${t+3*s+ph/2}h${pw}" stroke="${c.wood}" stroke-width="${.7*s}"/>`; }
+    const e=t+4*s, ov=15*s, rh=24*s, gh=16*s;
+    o+=`<path d="M${x-ov} ${e} L${x+w*.1} ${e-rh} L${x+w*.3} ${e-rh-gh} L${x+w*.7} ${e-rh-gh} L${x+w*.9} ${e-rh} L${x+w+ov} ${e}Z" fill="${c.roof}"/>`+
+       `<path d="M${x-ov} ${e} L${x+w+ov} ${e} L${x+w+ov-3*s} ${e-5*s} L${x-ov+3*s} ${e-5*s}Z" fill="${c.roofEdge}"/>`+
+       `<rect x="${x+w*.27}" y="${e-rh-gh-3*s}" width="${w*.46}" height="${4*s}" fill="${c.roofEdge}"/>`;
+    for(let i=0;i<6;i++) o+=`<rect x="${x+w*(.3+i*.08)}" y="${e-rh-gh-6*s}" width="${2*s}" height="${8*s}" fill="${c.roofEdge}"/>`;   // ridge saddles
+    return o; };
+  // curved temple/castle roof with upswept corners
+  const eave=(cx,y,w,c)=>`<path d="M${cx-w} ${y-8} Q${cx-w*.8} ${y} ${cx-w*.62} ${y} L${cx+w*.62} ${y} Q${cx+w*.8} ${y} ${cx+w} ${y-8} L${cx+w*.55} ${y-16} L${cx-w*.55} ${y-16}Z" fill="${c.tile}"/>`;
+  // kura: white-plaster storehouse with a tiled roof
+  const kura=(x,y,s,c)=>{ const w=44*s, h=40*s;
+    return `<rect x="${x}" y="${y-h}" width="${w}" height="${h}" fill="${c.plaster}"/><rect x="${x}" y="${y-h*.3}" width="${w}" height="${h*.3}" fill="${c.stone}"/>`+
+      `<rect x="${x+w*.38}" y="${y-h*.8}" width="${w*.24}" height="${h*.18}" fill="${c.wood}"/>`+
+      `<path d="M${x-8*s} ${y-h+2*s} Q${x+w*.5} ${y-h-4*s} ${x+w+8*s} ${y-h+2*s} L${x+w*.75} ${y-h-16*s} L${x+w*.25} ${y-h-16*s}Z" fill="${c.tile}"/>`; };
+  // castle keep: curved stone base and three tiers of white walls under upswept roofs
+  const castle=(cx,y,c)=>{
+    let o=`<path d="M${cx-72} ${y} Q${cx-58} ${y-14} ${cx-52} ${y-38} L${cx+52} ${y-38} Q${cx+58} ${y-14} ${cx+72} ${y}Z" fill="${c.stone}"/>`;
+    let yb=y-38;
+    [50,38,26].forEach((bw,i)=>{
+      o+=`<rect x="${cx-bw}" y="${yb-24}" width="${2*bw}" height="24" fill="${c.plaster}"/>`;
+      for(let k=-1;k<=1;k++) o+=`<rect x="${cx+k*bw*.55-3}" y="${yb-17}" width="6" height="8" fill="${c.castleWin}"/>`;
+      o+=eave(cx,yb-22,bw+16,c); yb-=38;
+      if(i===1) o+=`<path d="M${cx-14} ${yb+18} L${cx} ${yb+6} L${cx+14} ${yb+18}Z" fill="${c.tile}"/>`;   // little front gable
+    });
+    o+=`<path d="M${cx-24} ${yb+14} L${cx} ${yb-2} L${cx+24} ${yb+14}Z" fill="${c.tile}"/>`+
+       `<path d="M${cx-24} ${yb+12} q-4 -10 2 -12 M${cx+24} ${yb+12} q4 -10 -2 -12" stroke="${c.tile}" stroke-width="3" fill="none"/>`;   // shachihoko tips
+    return o; };
+  // five-storey pagoda with a spire
+  const pagoda=(x,y,c)=>{ let o=`<rect x="${x-1.5}" y="${y-215}" width="3" height="44" fill="${c.tile}"/>`;
+    for(let r=0;r<6;r++) o+=`<rect x="${x-5}" y="${y-208+r*6}" width="10" height="2" fill="${c.tile}"/>`;
+    for(let i=0;i<5;i++){ const yy=y-170+i*34, w=30+i*7;
+      o+=`<rect x="${x-w*.5}" y="${yy}" width="${w}" height="${i===4?34:18}" fill="${c.wood}"/>`+eave(x,yy+2,w+12,c); }
+    return o; };
+  // torii gate with upswept top beam
+  const torii=(x,y,c)=>`<rect x="${x-26}" y="${y-60}" width="6" height="60" fill="${c.torii}"/><rect x="${x+20}" y="${y-60}" width="6" height="60" fill="${c.torii}"/>`+
+    `<path d="M${x-42} ${y-70} Q${x} ${y-62} ${x+42} ${y-70} L${x+38} ${y-62} Q${x} ${y-56} ${x-38} ${y-62}Z" fill="${c.torii}"/><rect x="${x-32}" y="${y-50}" width="64" height="4" fill="${c.torii}"/><rect x="${x-2}" y="${y-58}" width="4" height="8" fill="${c.torii}"/>`;
+  // crooked black pine with flat, cloud-like boughs
+  const pine=(x,y,s,c)=>`<path d="M${x} ${y} C${x-6*s} ${y-18*s} ${x+12*s} ${y-30*s} ${x+2*s} ${y-52*s} M${x+2*s} ${y-26*s} L${x-14*s} ${y-32*s} M${x+5*s} ${y-38*s} L${x+18*s} ${y-42*s}" stroke="${c.trunk}" stroke-width="${3.5*s}" fill="none" stroke-linecap="round"/>`+
+    `<ellipse cx="${x-16*s}" cy="${y-34*s}" rx="${17*s}" ry="${5*s}" fill="${c.tree}"/><ellipse cx="${x+19*s}" cy="${y-45*s}" rx="${15*s}" ry="${5*s}" fill="${c.tree}"/><ellipse cx="${x+2*s}" cy="${y-55*s}" rx="${14*s}" ry="${5*s}" fill="${c.tree}"/>`;
+  // ishidoro: stone lantern with a glowing firebox
+  const toro=(x,y,c)=>`<rect x="${x-9}" y="${y-5}" width="18" height="5" fill="${c.stone}"/><rect x="${x-3}" y="${y-24}" width="6" height="19" fill="${c.stone}"/><rect x="${x-8}" y="${y-28}" width="16" height="4" fill="${c.stone}"/>`+
+    `<rect x="${x-6}" y="${y-40}" width="12" height="12" fill="${c.stone}"/><rect x="${x-3}" y="${y-37}" width="6" height="6" fill="${c.lamp}"/>`+
+    `<path d="M${x-13} ${y-39} Q${x-6} ${y-41} ${x} ${y-50} Q${x+6} ${y-41} ${x+13} ${y-39}Z" fill="${c.stone}"/><circle cx="${x}" cy="${y-52}" r="2.5" fill="${c.stone}"/>`+
+    (c.glow?`<circle cx="${x}" cy="${y-34}" r="11" fill="${c.glow}" opacity=".22"/>`:"");
+  const bamboo=(x,y,c)=>{ let s=""; for(let i=0;i<4;i++){ const xx=x+i*7, h=70+i*9; s+=`<rect x="${xx}" y="${y-h}" width="3" height="${h}" fill="${c.tree}"/>`; for(let k=1;k<5;k++) s+=`<rect x="${xx-.5}" y="${y-h*k/5}" width="4" height="1.5" fill="${c.trunk}"/>`; s+=`<path d="M${xx+1} ${y-h+8} q10 -6 16 -2 M${xx+1} ${y-h+24} q-10 -6 -16 -2" stroke="${c.tree}" stroke-width="2" fill="none"/>`; } return s; };
+  // taiko-bashi: arched bridge over a pond
+  const bridge=(x,y,c)=>`<ellipse cx="${x+60}" cy="${y+6}" rx="78" ry="9" fill="${c.water}"/>`+
+    `<path d="M${x} ${y} Q${x+60} ${y-44} ${x+120} ${y}" stroke="${c.torii}" stroke-width="6" fill="none"/><path d="M${x+4} ${y-12} Q${x+60} ${y-54} ${x+116} ${y-12}" stroke="${c.torii}" stroke-width="2" fill="none"/>`+
+    [18,39,60,81,102].map(px=>{ const t=px/120, dy=-44*2*t*(1-t); return `<rect x="${x+px-1}" y="${y+dy-10}" width="2" height="10" fill="${c.torii}"/>`; }).join("");
+  const wrap=(h,body)=>`url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${W}' height='${h}' viewBox='0 0 ${W} ${h}'>${body}</svg>`)}")`;
+
+  function tiles(night){
+    const c = night ? { far:"#1b2033", farSnow:"#3a4560", mid:"#171b29", near:"#12151f", wood:"#0d1018", stone:"#1f2435", plaster:"#2a3046", roof:"#151926", roofEdge:"#0b0d14", tile:"#0b0e16",
+                        shoji:"#f3c76b", shojiDim:"#2b3045", castleWin:"#f3c76b", glow:"#ffcf70", tree:"#11141d", trunk:"#0d1018", torii:"#5a2028", lamp:"#ffb347", water:"#1c2335" }
+                    : { far:"#e6dac2", farSnow:"#f6efe0", mid:"#dccdab", near:"#d3c19c", wood:"#a8936c", stone:"#c6b48f", plaster:"#efe6d2", roof:"#bba67d", roofEdge:"#a38e66", tile:"#9c8a68",
+                        shoji:"#efe5cf", shojiDim:"#efe5cf", castleWin:"#a8936c", glow:null, tree:"#c2b08a", trunk:"#a8936c", torii:"#cf8a7e", lamp:"#a8936c", water:"#e0d4b8" };
+    // far: mountain range with a snowy volcanic cone
+    seed=3; const FH=1500; let far=`<path d="M0 ${FH} L0 1180`;
+    for(let x=0;x<=W;x+=100) far+=` L${x} ${1120+rnd()*90}`;
+    far+=` L${W} ${FH}Z" fill="${c.far}"/>`;
+    far+=`<path d="M760 1180 Q900 1080 960 935 L1000 935 Q1060 1080 1200 1180Z" fill="${c.far}"/><path d="M938 990 Q952 960 960 935 L1000 935 Q1008 960 1022 990 L1000 980 L980 995 L960 980Z" fill="${c.farSnow}"/>`;
+    // mid: hills with terraced paddies, a castle keep, a pagoda, a torii, farmhouses and pines
+    const MH=1150; let mid=`<path d="M0 ${MH} L0 930 C 200 870, 380 960, 560 900 S 900 860, 1080 920 S 1300 900, ${W} 910 L${W} ${MH}Z" fill="${c.mid}"/>`;
+    for(let k=0;k<4;k++) mid+=`<path d="M380 ${960+k*14} Q560 ${930+k*14} 700 ${955+k*14}" stroke="${c.water}" stroke-width="2" fill="none" opacity=".7"/>`;
+    mid+=pagoda(250,912,c)+castle(780,888,c)+torii(1060,925,c);
+    mid+=minka(420,906,.6,c,true)+kura(530,902,.6,c)+minka(1180,914,.6,c,false);
+    [[140,935],[640,898],[930,876],[1330,915]].forEach(([x,y])=>mid+=pine(x,y,.9,c));
+    // near: village with minka, a storehouse, paddies, a bridge, bamboo and stone lanterns
+    const NH=900; let near=`<path d="M0 ${NH} L0 760 C 300 730, 600 790, 900 750 S 1250 740, ${W} 760 L${W} ${NH}Z" fill="${c.near}"/>`;
+    for(let k=0;k<3;k++) near+=`<path d="M0 ${812+k*22} Q350 ${800+k*22} 700 ${818+k*22} T${W} ${812+k*22}" stroke="${c.water}" stroke-width="3" fill="none"/>`;
+    near+=minka(60,768,1.1,c,true)+minka(320,772,1,c,false)+kura(600,774,1,c)+minka(1000,756,1,c,true)+minka(1220,762,1.05,c,false);
+    near+=bridge(720,772,c);
+    [[250,772],[560,776],[905,758],[1170,762]].forEach(([x,y])=>near+=toro(x,y,c));
+    near+=bamboo(470,776,c)+bamboo(1340,766,c);
+    // low bamboo lattice fence (yotsume-gaki)
+    for(let x=10;x<W;x+=48) near+=`<rect x="${x}" y="786" width="3" height="18" fill="${c.trunk}" opacity=".6"/>`;
+    near+=`<rect x="0" y="790" width="${W}" height="2" fill="${c.trunk}" opacity=".5"/><rect x="0" y="797" width="${W}" height="2" fill="${c.trunk}" opacity=".5"/>`;
+    return [ {img:wrap(FH,far), h:FH, speed:.12}, {img:wrap(MH,mid), h:MH, speed:.28}, {img:wrap(NH,near), h:NH, speed:.48} ];
+  }
+  const layers=[0,1,2].map(i=>{ const d=document.createElement("div"); d.className="lsc l"+i; host.appendChild(d); return d; });
+  let set=null;
+  function paint(){ set=tiles(document.documentElement.dataset.theme==="night"); set.forEach((t,i)=>{ layers[i].style.backgroundImage=t.img; layers[i].style.backgroundSize=`${W}px ${t.h}px`; }); move(); }
+  const still=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function move(){ const y=still?0:scrollY; set.forEach((t,i)=>{ layers[i].style.backgroundPosition=`${-i*230}px ${Math.round(-y*t.speed)}px`; }); }
+  let queued=false; addEventListener("scroll",()=>{ if(queued) return; queued=true; requestAnimationFrame(()=>{ queued=false; move(); }); },{passive:true});
+  // repaint when the theme changes
+  new MutationObserver(paint).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+  paint();
 })();
 </script>
 </body>
